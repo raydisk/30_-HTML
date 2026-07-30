@@ -202,6 +202,8 @@ table.dvG-sum{border-collapse:collapse;font-size:8.8pt;min-width:96mm}
 .bp-f.r{justify-content:flex-end}
 .bp-f.c{justify-content:center}
 .bp-g{position:absolute;border:1px dashed rgba(192,57,43,.7);background:rgba(192,57,43,.05);pointer-events:none}
+/* フォーマット9・11は右端が紙端から3〜5mmに達し、一般的なプリンタの印字不能領域で欠けるため印刷時のみ97%縮小（中央基準） */
+#print-mount .bp-fit{transform:scale(.97);transform-origin:top center}
 
 @media print{
   body{background:#fff}
@@ -661,9 +663,9 @@ const STYLES={
   g:{name:'G：卸売請求書型（Excel様式C再現）',desc:'Excel様式Cを罫線・配色・文言まで再現した卸売・EC取引向けレイアウト（グレー破線罫・合計欄は黒太破線・HGPゴシックM）。取引情報欄に「お客様番号：…」「伝票No.：…」「売上先CD：…」「売上先名：…」と入力すると原本と同じ位置に印字されます。',render:renderStyleG,cap:10}
 ,
   h:{name:'H：BP1410（ヒサゴ連続用紙にデータ印字）',desc:'書類作成の入力内容をヒサゴBP1410用紙（納品書・請求書の2連）の印字位置に割り付けて、データのみを印字します。明細は10行まで（超過分は印字されません）。品名欄には「型番＋商品名」、摘要には件名、お客様コードは取引情報欄の「お客様コード：…」を印字。プレビューの赤枠はガイドで印刷されません。印刷時は余白なし・倍率100%を指定してください。位置の微調整はBP1410タブの補正欄で行えます。',render:renderStyleH,cap:10},
-  i:{name:'I：請求書兼領収書（参考請求書再現）',desc:'Excel様式「請求書兼領収書」を罫線・配置ごと座標で再現。出荷先・請求先に宛名を差し込み、発送番号・発送業者・B/L・注文番号・受注番号・配送条件・貿易取引条件・メーカー・割引額・配送料・支払い方法は取引情報欄に「ラベル：値」で入力すると該当欄へ印字されます。明細は27行まで。印刷時は余白なし・倍率100%を指定してください。',render:renderStyleI,cap:27},
+  i:{name:'I：請求書兼領収書（参考請求書再現）',desc:'Excel様式「請求書兼領収書」を罫線・配置ごと座標で再現。出荷先・請求先に宛名を差し込み、発送番号・発送業者・B/L・注文番号・受注番号・配送条件・貿易取引条件・メーカー・割引額・配送料・支払い方法は取引情報欄に「ラベル：値」で入力すると該当欄へ印字されます。明細は27行まで。印刷時は余白なし・倍率100%を指定してください（右端がプリンタの印字不能領域で欠けないよう、印刷時のみ全体を97%に縮小して配置します）。',render:renderStyleI,cap:27},
   j:{name:'J：納品書（参考請求書再現）',desc:'Excel様式「納品書」を罫線・配置ごと座標で再現。お名前・住所・〒は宛名、右上の発行元情報（社名・住所・TEL）は宛元から差し込みます。注文番号・配送番号・メーカーは取引情報欄に「ラベル：値」で入力すると印字。明細は27行まで、最下段の「合計：」は数量の合計です。印刷時は余白なし・倍率100%を指定してください。',render:renderStyleJ,cap:27},
-  k:{name:'K：請求書兼領収書・図形バージョン（参考請求書再現）',desc:'2_請求書フォーマット.xlsxの様式をA4全幅に均等配置で再現（角丸枠・黒帯ヘッダー・白抜き見出し）。明細のない行はラベル・円も空欄。明細のモデル番号／商品コードは1品目2行、日付書式は発送日 yyyy/mm/dd・請求日 mm/dd/yyyy・支払期日 mm-dd-yy。差し込みルールはフォーマットIと同じ（発送番号・発送業者・注文番号・受注番号・配送条件・貿易取引条件・出荷先番号・請求先番号・割引額・配送料・支払い方法を取引情報欄から）。16品目まで。印刷時は余白なし・倍率100%を指定してください。',render:renderStyleK,cap:16}
+  k:{name:'K：請求書兼領収書・図形バージョン（参考請求書再現）',desc:'2_請求書フォーマット.xlsxの様式をA4全幅に均等配置で再現（角丸枠・黒帯ヘッダー・白抜き見出し）。明細のない行はラベル・円も空欄。明細のモデル番号／商品コードは1品目2行、日付書式は発送日 yyyy/mm/dd・請求日 mm/dd/yyyy・支払期日 mm-dd-yy。差し込みルールはフォーマットIと同じ（発送番号・発送業者・注文番号・受注番号・配送条件・貿易取引条件・出荷先番号・請求先番号・割引額・配送料・支払い方法を取引情報欄から）。16品目まで。印刷時は余白なし・倍率100%を指定してください（右端がプリンタの印字不能領域で欠けないよう、印刷時のみ全体を97%に縮小して配置します）。',render:renderStyleK,cap:16}
 };
 /* 履歴には画像を持たせない（容量対策）ため、描画時にマスタからIDで画像を解決する */
 function renderDocHTML(doc,forPrint){
@@ -1436,6 +1438,7 @@ function preview(){
 }
 function printDoc(doc){
   $('print-mount').innerHTML=renderDocHTML(doc,true);
+  if(['i','k'].includes(doc.style)){const sh=$('print-mount').firstElementChild;if(sh)sh.classList.add('bp-fit');}
   const isBp=['h','i','j','k'].includes(doc.style);
   if(isBp)$('pageStyle').textContent='@media print{@page{size:A4;margin:0}}';
   const old=document.title;
