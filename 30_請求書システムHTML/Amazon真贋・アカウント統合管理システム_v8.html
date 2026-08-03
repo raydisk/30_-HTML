@@ -3316,6 +3316,35 @@ window.__invBridge = {
   preview: function(){ if(typeof preview==='function') preview(); },
   save: function(){ if(typeof save==='function') save(); }
 };
+/* 書類作成タブ: 現在の請求書データを Excel(xlsx) で書き出す */
+function __invExportXlsx(){
+  try{
+    if(typeof XLSX==='undefined'){ alert('Excel書き出しはインターネット接続時のみ利用できます。'); return; }
+    var g=function(id){var e=document.getElementById(id);return e?e.value:'';};
+    var iss=(S.issuers||[]).find(function(i){return i.id===g('fIssuer');})||{};
+    var cl=(S.clients||[]).find(function(c){return c.id===g('fClient');})||{};
+    var dtLabel='請求書'; try{ var da=document.querySelector('#doctypeRow .on')||document.querySelector('#doctypeRow .active')||document.querySelector('#doctypeRow [aria-selected="true"]'); if(da&&da.textContent.trim()) dtLabel=da.textContent.trim(); }catch(e){}
+    var aoa=[];
+    aoa.push([dtLabel]);
+    aoa.push(['発行日', g('fDate'), '', '件名', g('fSubject')]);
+    aoa.push(['発行元', iss.name||'', '', '宛名', (cl.name||'')+' '+(cl.hono||'')]);
+    aoa.push(['住所', iss.addr||'', '', '住所', cl.addr||'']);
+    aoa.push(['TEL', iss.tel||'', '', '担当', cl.person||'']);
+    aoa.push(['登録番号', iss.inv||'', '', '登録番号', cl.inv||'']);
+    aoa.push([]);
+    aoa.push(['No','商品名','型番','JANコード','数量','単位','単価(税抜)','税率','金額(税抜)']);
+    var sub=0, tax=0;
+    (lines||[]).forEach(function(l,ix){ var q=Number(l.qty)||0, pr=Number(l.price)||0, amt=q*pr, rt=Number(l.rate)||0; sub+=amt; tax+=Math.floor(amt*rt/100); aoa.push([ix+1, l.name||'', l.model||'', l.jan||'', q, l.unit||'', pr, rt+'%', amt]); });
+    aoa.push([]);
+    aoa.push(['','','','','','','','小計(税抜)', sub]);
+    aoa.push(['','','','','','','','消費税', tax]);
+    aoa.push(['','','','','','','','合計(税込)', sub+tax]);
+    var fname=(dtLabel||'請求書')+'_'+((cl.name||'').replace(/[\/:*?"<>|]/g,''))+'.xlsx';
+    if(typeof dlXlsx==='function'){ dlXlsx(fname, (dtLabel||'請求書').slice(0,28), aoa); }
+    else { var ws=XLSX.utils.aoa_to_sheet(aoa); var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'請求書'); XLSX.writeFile(wb,fname); }
+  }catch(e){ alert('Excel書き出しに失敗: '+e.message); }
+}
+(function(){ function addBtn(){ var ref=document.getElementById('btnIssue'); if(!ref){ setTimeout(addBtn,300); return; } if(document.getElementById('btnXlsxOut')) return; var b=document.createElement('button'); b.type='button'; b.id='btnXlsxOut'; b.className='btn'; b.textContent='Excelで書き出す'; b.style.marginLeft='6px'; b.onclick=__invExportXlsx; ref.parentNode.insertBefore(b, ref.nextSibling); } addBtn(); })();
 <\/script>
 </body>
 </html>
