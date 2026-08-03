@@ -3402,7 +3402,7 @@ function editCustomer(id){ var c=(DB.customers||[]).find(function(x){return x.id
 function deleteCustomer(id){ confirmTwoTimes('この顧客(委託元)を削除します。紐付くアカウントは自社扱いに戻ります。', function(){ DB.customers=(DB.customers||[]).filter(function(c){return c.id!==id;}); (DB.accounts||[]).forEach(function(a){ if(a.customer===id) a.customer=''; }); _saveCustomersLS(); persist(); renderCustomers(); renderCustomerReport(); renderCustAccountView(); }); }
 function renderCustomers(){
   if(!DB.customers) DB.customers=JSON.parse(localStorage.getItem('amz_v6_customers')||'[]'); var Q=String.fromCharCode(39);
-  var gf=document.getElementById('globalCustFilter'); if(gf){ var cur=gf.value||window._filterCust||''; gf.innerHTML='<option value="">全体</option><option value="__self__">自社のみ</option>'+DB.customers.map(function(c){return '<option value="'+c.id+'">'+c.name+'</option>';}).join(''); gf.value=cur; }
+  var gf=document.getElementById('globalCustFilter'); if(gf){ var cur=gf.value||window._filterCust||''; gf.innerHTML='<option value="">全体</option><option value="__self__">自社</option><option value="__others__">他社（委託先）</option>'+(DB.customers.length?'<option disabled>──委託先別──</option>':'')+DB.customers.map(function(c){return '<option value="'+c.id+'">'+c.name+'</option>';}).join(''); gf.value=cur; }
   var mc=document.getElementById('m_customer'); if(mc){ var mcur=mc.value; mc.innerHTML='<option value="">（自社）</option>'+DB.customers.map(function(c){return '<option value="'+c.id+'">'+c.name+'</option>';}).join(''); mc.value=mcur; }
   /* 委託元別アカウント台帳の表示は custScopeFilter(全体/自社/他社) と 顧客一覧「台帳表示」で制御 */
   var box=document.getElementById('customerList'); if(!box) return;
@@ -3443,8 +3443,8 @@ function renderApplications(){ if(!DB.applications) DB.applications=JSON.parse(l
 }
 
 /* ===== 絞り込み・検索 ===== */
-window._rowPassAcc=function(a){ var f=window._filterCust; if(f==='__self__'){ if(a.customer) return false; } else if(f){ if(a.customer!==f) return false; } var t=(window._searchAccTerm||'').toLowerCase(); if(t){ var hay=[a.id,a.name,a.store,a.manager,a.address,a.bankNo,custName(a.customer)].join(' ').toLowerCase(); if(hay.indexOf(t)<0) return false; } return true; };
-window._rowPassCase=function(c){ var acc=(DB.accounts||[]).find(function(x){return x.id===c.account;})||{}; var f=window._filterCust; if(f==='__self__'){ if(acc.customer) return false; } else if(f){ if(acc.customer!==f) return false; } var t=(window._searchCaseTerm||'').toLowerCase(); if(t){ var hay=[c.asin,c.store,c.account,c.type,c.status,c.productName,custName(acc.customer)].join(' ').toLowerCase(); if(hay.indexOf(t)<0) return false; } return true; };
+window._rowPassAcc=function(a){ var f=window._filterCust; if(f==='__self__'){ if(a.customer) return false; } else if(f==='__others__'){ if(!a.customer) return false; } else if(f){ if(a.customer!==f) return false; } var t=(window._searchAccTerm||'').toLowerCase(); if(t){ var hay=[a.id,a.name,a.store,a.manager,a.address,a.bankNo,custName(a.customer)].join(' ').toLowerCase(); if(hay.indexOf(t)<0) return false; } return true; };
+window._rowPassCase=function(c){ var acc=(DB.accounts||[]).find(function(x){return x.id===c.account;})||{}; var f=window._filterCust; if(f==='__self__'){ if(acc.customer) return false; } else if(f==='__others__'){ if(!acc.customer) return false; } else if(f){ if(acc.customer!==f) return false; } var t=(window._searchCaseTerm||'').toLowerCase(); if(t){ var hay=[c.asin,c.store,c.account,c.type,c.status,c.productName,custName(acc.customer)].join(' ').toLowerCase(); if(hay.indexOf(t)<0) return false; } return true; };
 function onGlobalFilter(v){ window._filterCust=v; initUI(); }
 function onAccSearch(v){ window._searchAccTerm=v; initUI(); }
 function onCaseSearch(v){ window._searchCaseTerm=v; initUI(); }
