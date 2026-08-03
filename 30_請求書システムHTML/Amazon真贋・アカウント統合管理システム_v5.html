@@ -1,46 +1,4 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>統合管理システム — 真贋・アカウント管理 ＋ 請求書発行</title>
-<style>
-:root{
-  --indigo:#1B2A4A; --indigo-deep:#121D35; --vermilion:#C0392B; --line:#D8DEE8;
-  --sans:"Hiragino Kaku Gothic ProN","Yu Gothic","YuGothic",Meiryo,sans-serif;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%}
-body{font-family:var(--sans);background:#0D1526;display:flex;flex-direction:column;overflow:hidden}
-.app-topbar{background:var(--indigo-deep);color:#fff;display:flex;align-items:center;gap:18px;
-  height:44px;padding:0 16px;flex:0 0 auto;box-shadow:0 2px 8px rgba(0,0,0,.3);z-index:5}
-.app-brand{font-size:12px;letter-spacing:.12em;font-weight:700;white-space:nowrap;opacity:.92}
-.app-switch{display:flex;gap:6px}
-.app-switch button{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.22);color:rgba(255,255,255,.72);
-  border-radius:6px;padding:6px 14px;font-size:12px;font-family:var(--sans);cursor:pointer;letter-spacing:.04em}
-.app-switch button:hover{background:rgba(255,255,255,.18);color:#fff}
-.app-switch button.on{background:var(--vermilion);border-color:var(--vermilion);color:#fff;font-weight:700}
-.app-hint{margin-left:auto;font-size:10px;color:rgba(255,255,255,.45);white-space:nowrap}
-.app-stage{position:relative;flex:1 1 auto;min-height:0}
-.app-frame{position:absolute;inset:0;width:100%;height:100%;border:0;background:#EDF0F5;display:none}
-.app-frame.on{display:block}
-</style>
-</head>
-<body>
-  <div class="app-topbar">
-    <div class="app-brand">統合管理システム v1</div>
-    <nav class="app-switch">
-      <button type="button" data-app="amz" class="on">🗂 真贋・アカウント管理</button>
-      <button type="button" data-app="inv">🧾 請求書発行</button>
-    </nav>
-    <span class="app-hint">案件一覧の「請求書作成」から請求書発行へ連携できます</span>
-  </div>
-  <div class="app-stage">
-    <iframe id="frmAmz" class="app-frame on" title="真贋・アカウント管理"></iframe>
-    <iframe id="frmInv" class="app-frame" title="請求書発行"></iframe>
-  </div>
-
-  <script type="text/html" id="doc-amz"><!--
+<!--
   タイトル: Gemini_真贋・アカウント管理6.html
   格納先: Dropbox / 30_請求書システムHTML フォルダ
 -->
@@ -50,6 +8,7 @@ body{font-family:var(--sans);background:#0D1526;display:flex;flex-direction:colu
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gemini_真贋・アカウント管理6.html - Amazonアカウント台帳・苦情・真贋対策 総合管理システム v6.0</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
   --indigo:#1B2A4A; --indigo-deep:#121D35; --paper:#FFFFFF; --bg:#EDF0F5;
@@ -136,10 +95,14 @@ table.list tr:hover td{background:#FAFBFD}
     <button class="tab" data-pane="accounts" type="button">2. アカウント台帳 (主要6項目)</button>
     <button class="tab" data-pane="history-log" type="button">3. アカウント変更履歴</button>
     <button class="tab" data-pane="cases" type="button">4. 案件・苦情管理</button>
-    <button class="tab" data-pane="invoice" type="button">5. 簡易請求書(旧)</button>
-    <button class="tab" data-pane="suppliers" type="button">6. 仕入れ元マスタ</button>
-    <button class="tab" data-pane="complain-history" type="button">7. 対応・提出履歴</button>
+    <button class="tab" data-pane="invoice" type="button">5. 請求書発行</button>
+    <button class="tab" data-pane="complain-history" type="button">6. 対応・提出履歴</button>
+    <button class="tab" data-pane="customers" type="button">7. 顧客・代行</button>
   </nav>
+  <span style="margin-left:auto;display:flex;align-items:center;gap:6px">
+    <label style="margin:0;color:rgba(255,255,255,.7);font-size:10px">表示</label>
+    <select id="globalCustFilter" onchange="onGlobalFilter(this.value)" style="width:auto;min-width:120px;font-size:11px;padding:3px 6px"></select>
+  </span>
   <span class="save-note" id="saveNote">データ保存: ローカル</span>
   <span style="display:flex;gap:6px">
     <button class="topbtn" onclick="exportData()" type="button">データ書出</button>
@@ -159,6 +122,10 @@ table.list tr:hover td{background:#FAFBFD}
       <div id="dashUrgentList"></div>
     </div>
     <div class="card">
+      <h3 style="font-size:13px;margin-bottom:8px;color:var(--indigo)">■ 今週の対応期限（7日以内 / 対応中）</h3>
+      <div id="dashWeekList"></div>
+    </div>
+    <div class="card">
       <h3 style="font-size:13px;margin-bottom:8px;color:var(--indigo)">■ 登録アカウント一覧（主要項目）</h3>
       <div id="dashAccountSummary"></div>
     </div>
@@ -166,9 +133,13 @@ table.list tr:hover td{background:#FAFBFD}
 
   <!-- 2. アカウント台帳 -->
   <section class="pane" id="pane-accounts">
-    <div class="row" style="justify-content:space-between;margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
       <h2 class="sec" style="margin:0">Amazonアカウント台帳 (主要6項目一覧・重複警告つき)</h2>
-      <button type="button" class="btn primary sm" onclick="openAccountModal()">＋ 新規アカウント登録 (全41項目)</button>
+      <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <input type="text" id="accSearch" placeholder="検索: ID/名称/ストア/顧客" style="width:190px" oninput="onAccSearch(this.value)">
+        <button type="button" class="btn sm" onclick="exportSheet('accounts','xlsx')">Excel</button> <button type="button" class="btn sm" onclick="exportSheet('accounts','csv')">CSV</button> <label class="btn sm" style="cursor:pointer;display:inline-block">取込<input type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="importSheet('accounts', this.files[0]); this.value='';"></label>
+        <button type="button" class="btn primary sm" onclick="openAccountModal()">＋ 新規登録</button>
+      </span>
     </div>
     <div class="card" style="padding:0">
       <div style="overflow-x:auto">
@@ -270,7 +241,13 @@ table.list tr:hover td{background:#FAFBFD}
     </div>
 
     <div class="card" style="padding:0">
-      <div style="padding:12px 16px 0; font-weight:bold; font-size:13px;">案件一覧・対応状況トラッキング</div>
+      <div style="padding:12px 16px 0; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+        <span style="font-weight:bold; font-size:13px;">案件一覧・対応状況トラッキング</span>
+        <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <input type="text" id="caseSearch" placeholder="検索: ASIN/店舗/アカウント/顧客" style="width:210px" oninput="onCaseSearch(this.value)">
+          <button type="button" class="btn sm" onclick="exportSheet('cases','xlsx')">Excel</button> <button type="button" class="btn sm" onclick="exportSheet('cases','csv')">CSV</button> <label class="btn sm" style="cursor:pointer;display:inline-block">取込<input type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="importSheet('cases', this.files[0]); this.value='';"></label>
+        </span>
+      </div>
       <div style="overflow-x:auto">
         <table class="list" id="caseTable" style="margin:0">
           <thead>
@@ -284,138 +261,109 @@ table.list tr:hover td{background:#FAFBFD}
     </div>
   </section>
 
-  <!-- 5. 請求書発行 -->
+  <!-- 5. 請求書発行 (本格版 vo24 内蔵・総合管理連携) -->
   <section class="pane" id="pane-invoice">
-    <div class="create-grid">
-      <div>
-        <div class="card">
-          <h2 class="sec">請求書発行条件の設定</h2>
-          <div class="grid g2" style="margin-bottom:12px;">
-            <div>
-              <label>請求元アカウント（台帳から選択）<span style="color:var(--vermilion)">＊</span></label>
-              <select id="fIssuerHistory"></select>
-            </div>
-            <div>
-              <label>仕入れ元（発行元）<span style="color:var(--vermilion)">＊</span></label>
-              <select id="fSupplier"></select>
-            </div>
-          </div>
-          <div class="grid g2" style="margin-bottom:12px;">
-            <div>
-              <label>宛先（Amazon様窓口等）</label>
-              <input type="text" id="fClientName" value="Amazon様 担当窓口御中">
-            </div>
-            <div>
-              <label>書類発行日</label>
-              <input type="date" id="fDate">
-            </div>
-          </div>
-          <div class="grid g2">
-            <div>
-              <label>対象ASIN</label>
-              <input type="text" id="fAsin" placeholder="B08N5WRWNW">
-            </div>
-            <div>
-              <label>紐付ける苦情案件</label>
-              <select id="fCaseLink"><option value="">-- 選択なし --</option></select>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <h2 class="sec">商品明細行</h2>
-          <table class="list" id="lineTable">
-            <thead>
-              <tr>
-                <th>商品名 / 型番</th>
-                <th>備考・JAN</th>
-                <th style="width:60px;">数量</th>
-                <th style="width:90px;">単価 (円)</th>
-                <th style="width:45px;">操作</th>
-              </tr>
-            </thead>
-            <tbody id="lineBody"></tbody>
-          </table>
-          <button type="button" id="addLine" class="btn sm" style="margin-top:8px;">＋ 行を追加</button>
-          
-          <div class="row" style="margin-top:16px; justify-content:space-between; display:flex;">
-            <button type="button" class="btn navy" id="btnGenerate">プレビュー更新</button>
-            <button type="button" class="btn primary" onclick="window.print()">🖨️ 請求書を印刷 / PDF保存</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="sheet-scroll">
-        <div class="sheet" id="invoiceSheet"></div>
-      </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+      <h2 class="sec" style="margin:0">請求書発行（本格版・総合管理連携）</h2>
+      <span style="font-size:11px;color:var(--muted)">宛名（取引先）はアカウント台帳を自動反映。発行元（仕入先）は「宛元マスタ」で管理。</span>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">
+      案件の「請求書作成」、顧客の「代行報酬を請求」からプリフィルできます。宛元/取引先/商品マスタは請求書内でExcel入出力できます。
+    </div>
+    <div style="border:1px solid var(--line);border-radius:6px;overflow:hidden;background:#EDF0F5">
+      <iframe id="invEmbed" title="請求書発行" style="width:100%;height:calc(100vh - 190px);min-height:600px;border:0;display:block"></iframe>
     </div>
   </section>
 
-  <!-- 6. 仕入れ元マスタ -->
-  <section class="pane" id="pane-suppliers">
-    <h2 class="sec">新規仕入れ元（卸・メーカー）登録</h2>
-    <div class="card">
-      <div class="grid g2" style="margin-bottom:10px;">
-        <div><label>会社名・正式屋号</label><input type="text" id="supName" placeholder="株式会社〇〇ディストリビューション"></div>
-        <div><label>電話番号</label><input type="text" id="supPhone" placeholder="03-xxxx-xxxx"></div>
-      </div>
-      <div class="grid g2" style="margin-bottom:12px;">
-        <div><label>所在地住所</label><input type="text" id="supAddress" placeholder="大阪府大阪市..."></div>
-        <div><label>公式サイトURL</label><input type="text" id="supUrl" placeholder="https://..."></div>
-      </div>
-      <button type="button" class="btn primary" id="saveSupplier">仕入れ元を追加する</button>
-    </div>
-    <div class="card" style="padding:0">
-      <div style="padding:12px 16px 0; font-weight:bold; font-size:13px;">登録済み仕入れ元一覧</div>
-      <table class="list" id="supTable" style="margin:0"><thead><tr><th>仕入れ先名称</th><th>住所</th><th>電話番号</th><th>URL</th></tr></thead><tbody></tbody></table>
-    </div>
-  </section>
-
-  <!-- 7. 対応・提出履歴 -->
+  <!-- 6. 対応・提出履歴 (事案別やり取りスレッド) -->
   <section class="pane" id="pane-complain-history">
-    <h2 class="sec">Amazonへの提出・対応履歴の記録（通過率分析）</h2>
+    <h2 class="sec">Amazon対応・提出やり取り履歴（事案別スレッド）</h2>
     <div class="card">
-      <div class="grid g3" style="margin-bottom:10px;">
-        <div><label>対象案件</label><select id="hCaseId"></select></div>
-        <div><label>提出日</label><input type="date" id="hDate"></div>
-        <div><label>仕入先（提出書類）</label><select id="hSupplier"></select></div>
+      <div class="grid g2" style="margin-bottom:6px;">
+        <div><label>対象事案</label><select id="hCaseId"></select></div>
+        <div id="hCaseSummary" style="font-size:11px;color:var(--muted);align-self:end"></div>
       </div>
-      <div class="grid g3" style="margin-bottom:10px;">
-        <div><label>提出書類種類</label>
-          <select id="hDocType">
-            <option value="請求書">請求書</option>
-            <option value="領収書">領収書</option>
-            <option value="販売許可書">販売許可書</option>
-            <option value="真贋改善計画書">真贋改善計画書</option>
-            <option value="その他">その他</option>
-          </select>
-        </div>
-        <div><label>提出先メール/URL</label><input type="text" id="hTarget" placeholder="selleraccount-review@amazon.co.jp"></div>
-        <div><label>合否判定</label>
-          <select id="hResult">
-            <option value="対応中">対応中（審査待ち）</option>
-            <option value="承認(復活)">承認(出品再開)</option>
-            <option value="却下">却下（要再提出）</option>
-          </select>
-        </div>
+      <div class="grid g2">
+        <div><label>原本フォルダURL（Dropbox・この事案）</label><input type="text" id="hDropboxUrl" placeholder="https://www.dropbox.com/..."></div>
+        <div style="align-self:end;display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn sm" onclick="saveDropboxUrl()">URLを保存</button><button type="button" class="btn sm navy" onclick="openDropbox()">📂 原本フォルダを開く</button></div>
+      </div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+        <span style="font-weight:bold;font-size:13px;">やり取りスレッド（時系列・発信＝提出／受信＝Amazon返信）</span>
+        <span style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn sm" onclick="exportSheet('history','xlsx')">Excel</button> <button type="button" class="btn sm" onclick="exportSheet('history','csv')">CSV</button> <label class="btn sm" style="cursor:pointer;display:inline-block">取込<input type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="importSheet('history', this.files[0]); this.value='';"></label></span>
+      </div>
+      <div id="caseThread"></div>
+    </div>
+    <div class="card">
+      <div style="font-weight:bold;font-size:13px;margin-bottom:10px;">この事案にやり取りを記録する</div>
+      <div class="grid g4" style="margin-bottom:10px;">
+        <div><label>方向</label><select id="hDirection"><option value="発信">発信（こちらから提出）</option><option value="受信">受信（Amazonから返信）</option></select></div>
+        <div><label>日時（いつ何時）</label><input type="datetime-local" id="hDateTime"></div>
+        <div><label>書類種類</label><select id="hDocType"><option value="請求書">請求書</option><option value="領収書">領収書</option><option value="販売許可書">販売許可書</option><option value="真贋改善計画書">真贋改善計画書</option><option value="なし/その他">なし/その他</option></select></div>
+        <div><label>発行元（仕入先）</label><select id="hIssuer"></select></div>
+      </div>
+      <div class="grid g4" style="margin-bottom:10px;">
+        <div><label>送信先／差出人</label><input type="text" id="hTarget" placeholder="csm-brand-review@amazon.co.jp"></div>
+        <div><label>結果／状態</label><select id="hResult"><option value="対応中">対応中（審査待ち）</option><option value="返信あり">返信あり</option><option value="承認(復活)">承認(出品再開)</option><option value="却下">却下（要再提出）</option></select></div>
+        <div><label>理由・回答要旨</label><input type="text" id="hReason" placeholder="仕入先情報が確認できない等"></div>
+        <div><label>学び・次回対策</label><input type="text" id="hLearn" placeholder="電話番号と担当者名を明記"></div>
+      </div>
+      <div class="grid g4" style="margin-bottom:10px;">
+        <div style="grid-column:span 2"><label>提出ファイル名（原本・Dropbox）</label><input type="text" id="hFileName" placeholder="「ファイル名を自動生成」で作成できます"></div>
+        <div><label>補足（任意）</label><input type="text" id="hFileSuffix" placeholder="中古コンディション 等"></div>
+        <div style="align-self:end"><button type="button" class="btn sm" onclick="autoFileName()">ファイル名を自動生成</button></div>
       </div>
       <div class="grid g2" style="margin-bottom:12px;">
-        <div><label>却下理由・回答要旨</label><input type="text" id="hReason" placeholder="仕入先情報が確認できない等"></div>
-        <div><label>学び・次回への対策</label><input type="text" id="hLearn" placeholder="電話番号と担当者名を明記する"></div>
+        <div style="grid-column:span 2"><label>メモ</label><input type="text" id="hMemo" placeholder="補足メモ"></div>
       </div>
-      <button type="button" class="btn primary" id="saveHistory">対応履歴を記録する</button>
+      <button type="button" class="btn primary" id="saveHistory">この事案に記録する</button>
     </div>
-
     <div class="card" style="padding:0">
-      <div style="padding:12px 16px 0; font-weight:bold; font-size:13px;">提出・対応ログ一覧</div>
+      <div style="padding:12px 16px 0; font-weight:bold; font-size:13px;">全案件の記録ログ（俯瞰）</div>
       <table class="list" id="historyTable" style="margin:0">
-        <thead>
-          <tr>
-            <th>履歴No</th><th>案件No</th><th>アカウント</th><th>提出日</th><th>仕入先</th><th>書類</th><th>合否</th><th>却下理由・対策</th><th>操作</th>
-          </tr>
-        </thead>
+        <thead><tr><th>日時</th><th>案件No</th><th>アカウント</th><th>方向</th><th>書類</th><th>発行元/相手</th><th>結果</th><th>ファイル名</th><th>操作</th></tr></thead>
         <tbody></tbody>
       </table>
+    </div>
+  </section>
+
+  <!-- 7. 顧客（委託元）マスタ・代行管理 -->
+  <section class="pane" id="pane-customers">
+    <h2 class="sec">顧客（委託元）マスタ・代行管理</h2>
+    <div class="card">
+      <div class="grid g4" style="margin-bottom:10px;">
+        <div><label>顧客名（委託元）</label><input type="text" id="custName" placeholder="株式会社〇〇"></div>
+        <div><label>担当者</label><input type="text" id="custPerson" placeholder="山田太郎"></div>
+        <div><label>電話</label><input type="text" id="custPhone" placeholder="03-xxxx-xxxx"></div>
+        <div><label>メール</label><input type="text" id="custEmail" placeholder="client@example.com"></div>
+      </div>
+      <div class="grid g4" style="margin-bottom:10px;">
+        <div><label>料金種別</label><select id="custFeeType"><option value="成果報酬">成果報酬</option><option value="定額">定額（月額等）</option><option value="都度">都度</option></select></div>
+        <div><label>料金額(円)</label><input type="number" id="custFee" placeholder="30000"></div>
+        <div style="grid-column:span 2"><label>メモ・契約内容</label><input type="text" id="custMemo" placeholder="契約内容など"></div>
+      </div>
+      <input type="hidden" id="custEditId">
+      <button type="button" class="btn primary" onclick="saveCustomer()">顧客を保存する</button>
+      <button type="button" class="btn sm" onclick="clearCustomerForm()" style="margin-left:6px">クリア</button>
+    </div>
+    <div class="card" style="padding:0">
+      <div style="padding:12px 16px 0; display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+        <span style="font-weight:bold; font-size:13px;">登録済み顧客（委託元）一覧</span>
+        <span style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn sm" onclick="exportSheet('customers','xlsx')">Excel</button> <button type="button" class="btn sm" onclick="exportSheet('customers','csv')">CSV</button> <label class="btn sm" style="cursor:pointer;display:inline-block">取込<input type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="importSheet('customers', this.files[0]); this.value='';"></label></span>
+      </div>
+      <div id="customerList" style="padding:8px 16px 16px"></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+        <span style="font-weight:bold;font-size:13px;">委託元別 アカウント台帳（主要6項目・重複警告つき）</span>
+        <select id="custAccView" onchange="renderCustAccountView()" style="width:auto;min-width:160px"></select>
+      </div>
+      <div style="overflow-x:auto"><table class="list" id="custAccTable"><thead><tr><th>№</th><th>ID(メール)</th><th>正式名称</th><th>ストア情報</th><th>銀行</th><th>クレカ</th><th>住所・電話</th><th>操作</th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <div class="card">
+      <div style="font-weight:bold;font-size:13px;margin-bottom:8px;">顧客別 成果レポート（通過率・対応状況）</div>
+      <div id="customerReport"></div>
     </div>
   </section>
 
@@ -430,6 +378,7 @@ table.list tr:hover td{background:#FAFBFD}
     <div style="font-weight:bold; font-size:12px; margin:10px 0 5px; color:var(--indigo)">■ 基本・ログイン・出品者情報</div>
     <div class="grid g4">
       <div><label>№</label><input type="number" id="m_no"></div>
+      <div><label>委託元(顧客/空=自社)</label><select id="m_customer"></select></div>
       <div><label>ID(メール)＊</label><input type="text" id="m_id" oninput="checkDuplicates()"></div>
       <div><label>PW</label><input type="text" id="m_pw"></div>
       <div><label>正式名称</label><input type="text" id="m_name" oninput="checkDuplicates()"></div>
@@ -492,6 +441,11 @@ table.list tr:hover td{background:#FAFBFD}
 </div>
 
 <script>
+window._rowPassAcc=function(){return true;};
+window._rowPassCase=function(){return true;};
+window._filterCust='';window._searchAccTerm='';window._searchCaseTerm='';
+</script>
+<script>
 // エクセル台帳完全準拠の19件初期データ（Amazonアカウント台帳.xlsxより完全再現）
 const INITIAL_ACCOUNTS = [
   {no:0, id:"animalcompany1982@gmail.com", pw:"tkiuser5711", name:"株式会社レイディスク", token:"AJ8OA2PQ4IUHZ", inv:"T2010001243966", store:"本郷電機販売", storePhone:"050-3174-2080", email:"animalcompany1982@gmail.com", manager:"kanato kashio", bankNo:"1106026", bankHolder:"ﾔﾏﾉｳﾁ ﾕｳｲﾁ", bankName:"住信SBI銀行", cardNo:"9999", cardHolder:"YUUICHI YAMANOUCHI", zip:"〒113-0033", address:"東京都文京区本郷２－２５－１４", building:"第一ライトビル５階", phone:"03-5990-9456", returnName:"株式会社レイディスク", returnZip:"〒113-0033", returnAddr:"東京都本郷2丁目２５－１４", returnBldg:"第一ライトビル５階", frontUrl:"https://www.amazon.co.jp/sp?ie=UTF8&seller=AJ8OA2PQ4IUHZ", assuranceAddr:"animalcompany1982@gmail.com", assuranceNo:"090-6183-7437", emergencyEmail:"animalcompany1982@gmail.com", emergencyPhone:"090-6183-7437", loginSecName:"", loginSecEmail:"", loginSecMobile:"", regName:"株式会社レイディスク", regIdProof:"パスポート", regPhone:"-", regZip:"〒113-0033", regAddress:"東京都文京区本郷２－２５－１４ 第一ライトビル５階", regEmail:"animalcompany1982@gmail.com", regCorpName:"株式会社レイディスク", regStoreName:"株式会社 レイディスク", regManager:"株式会社 レイディスク", regFixedPhone:"03-5990-9456"},
@@ -521,12 +475,11 @@ function persist() {
   localStorage.setItem('amz_v6_cases', JSON.stringify(DB.cases));
   localStorage.setItem('amz_v6_history', JSON.stringify(DB.history));
   initUI();
+  if(typeof syncClientsFromLedger === 'function') syncClientsFromLedger();
+  if(typeof renderCustomers === 'function'){ renderCustomers(); renderCustomerReport(); renderCustAccountView(); }
 }
 
-if(DB.suppliers.length === 0) {
-  DB.suppliers.push({id: 's1', name: '株式会社レイディスク', address: '東京都文京区本郷2-25-14', phone: '03-5990-9456', url: 'https://www.amazon.co.jp'});
-  DB.suppliers.push({id: 's2', name: '月島電気商会', address: '東京都中央区月島4-3-3', phone: '050-1234-1111', url: 'https://example.com'});
-}
+// 仕入れ元の初期シードは廃止（発行元は請求書の宛元マスタで一元管理）
 if(DB.cases.length === 0) {
   DB.cases.push({
     id: 'c1', no: 1, date: '2026-07-18', account: 'animalcompany1982@gmail.com', store: '本郷電機販売', type: 'アカウント停止', noticeType: 'アカウント停止', impact: '「重大」',
@@ -559,12 +512,14 @@ document.addEventListener('DOMContentLoaded', () => {
   renderLines();
 
   // イベント登録
-  document.getElementById('addLine').addEventListener('click', () => {
+  const _addLineBtn = document.getElementById('addLine');
+  if(_addLineBtn) _addLineBtn.addEventListener('click', () => {
     lines.push({name: '', note: '', qty: 1, price: 0});
     renderLines();
   });
 
-  document.getElementById('saveSupplier').addEventListener('click', () => {
+  const _saveSup = document.getElementById('saveSupplier');
+  if(_saveSup) _saveSup.addEventListener('click', () => {
     DB.suppliers.push({
       id: 's_' + Date.now(),
       name: document.getElementById('supName').value,
@@ -602,37 +557,42 @@ document.addEventListener('DOMContentLoaded', () => {
     alert('新規案件を登録しました');
   });
 
-  document.getElementById('saveHistory').addEventListener('click', () => {
+  const _saveHist = document.getElementById('saveHistory');
+  if(_saveHist) _saveHist.addEventListener('click', () => {
     const caseId = document.getElementById('hCaseId').value;
-    const supId = document.getElementById('hSupplier').value;
-    const sup = DB.suppliers.find(s => s.id === supId) || {};
     const cObj = DB.cases.find(c => c.id === caseId);
-
+    if(!cObj){ alert('先に対象事案を選択してください'); return; }
+    const direction = document.getElementById('hDirection').value;
+    const dt = document.getElementById('hDateTime').value || nowLocalDT();
+    const result = document.getElementById('hResult').value;
     DB.history.push({
       id: 'h_' + Date.now(),
       no: DB.history.length + 1,
       caseId: caseId,
-      caseNo: cObj ? cObj.no : 1,
-      account: cObj ? cObj.account : 'Amazon',
-      date: document.getElementById('hDate').value,
-      supplierName: sup.name || '仕入先',
+      caseNo: cObj.no,
+      account: cObj.account,
+      datetime: dt,
+      date: (dt || '').slice(0,10),
+      direction: direction,
       docType: document.getElementById('hDocType').value,
+      issuer: document.getElementById('hIssuer').value,
       target: document.getElementById('hTarget').value,
-      result: document.getElementById('hResult').value,
+      result: result,
       reason: document.getElementById('hReason').value,
-      learn: document.getElementById('hLearn').value
+      learn: document.getElementById('hLearn').value,
+      fileName: document.getElementById('hFileName').value,
+      memo: document.getElementById('hMemo').value
     });
-
-    if(cObj) {
-      cObj.status = document.getElementById('hResult').value === '承認(復活)' ? '承認(復活)' : document.getElementById('hResult').value;
-      cObj.result = document.getElementById('hResult').value;
-      cObj.count = (cObj.count || 0) + 1;
-    }
+    if(direction === '発信') cObj.count = (cObj.count || 0) + 1;
+    if(result === '承認(復活)' || result === '却下' || result === '対応中'){ cObj.status = result; cObj.result = result; }
     persist();
-    alert('対応・提出履歴を記録しました');
+    ['hReason','hLearn','hMemo','hTarget','hFileName','hFileSuffix'].forEach(function(id){var e=document.getElementById(id); if(e)e.value='';});
+    if(typeof renderCaseThread === 'function') renderCaseThread();
+    alert('やり取りを記録しました');
   });
 
-  document.getElementById('btnGenerate').addEventListener('click', () => {
+  const _btnGen = document.getElementById('btnGenerate');
+  if(_btnGen) _btnGen.addEventListener('click', () => {
     updatePreview();
     alert('プレビューを更新しました！');
   });
@@ -672,7 +632,7 @@ function initUI() {
 
   const supOpts = DB.suppliers.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
   if(supSel) supSel.innerHTML = supOpts;
-  if(hSupSel) hSupSel.innerHTML = supOpts;
+  // hSupplier は廃止
 
   const accOpts = DB.accounts.map(a => `<option value="${a.id}">[${a.store}] ${a.id}</option>`).join('');
   if(issSel) issSel.innerHTML = DB.accounts.map(a => `<option value="${a.id}">[${a.store}] ${a.name} (${a.id})</option>`).join('');
@@ -691,7 +651,7 @@ function initUI() {
   if(supTbl) supTbl.innerHTML = DB.suppliers.map(s => `<tr><td>${s.name}</td><td>${s.address}</td><td>${s.phone}</td><td>${s.url}</td></tr>`).join('');
   
   if(accTbl) {
-    accTbl.innerHTML = DB.accounts.map(a => {
+    accTbl.innerHTML = DB.accounts.filter(window._rowPassAcc).map(a => {
       // 一覧画面でも各アカウントごとの重複をチェック
       const d = getDuplicatesMap(a);
       const bankStyle = d.bank ? 'background-color:var(--warn-bg); color:var(--vermilion-dark); font-weight:bold;' : '';
@@ -732,25 +692,21 @@ function initUI() {
 
   if(caseTbl) {
     const todayStr = new Date().toISOString().slice(0,10);
-    caseTbl.innerHTML = DB.cases.map(c => {
+    caseTbl.innerHTML = DB.cases.filter(window._rowPassCase).map(c => {
       const rem = c.deadline ? Math.ceil((new Date(c.deadline) - new Date(todayStr)) / (1000*60*60*24)) : '-';
       const badgeCls = rem !== '-' && rem <= 3 ? 'badge danger' : 'badge';
       return `<tr>
         <td><b>${c.no}</b></td><td>${c.date}</td><td>${c.account}</td><td>${c.store}</td><td>${c.type}</td><td>${c.noticeType}</td>
         <td><b>${c.asin}</b><br><span style="font-size:10px;color:var(--muted)">${c.productName}</span></td>
         <td>${c.deadline}</td><td><span class="${badgeCls}">${rem}日</span></td><td>${c.status}</td>
-        <td style="white-space:nowrap"><button class="btn sm" onclick="sendToInvoice('${c.id}')">請求書作成</button> <button class="btn sm danger" onclick="deleteCaseWithConfirm('${c.id}')">削除</button></td>
+        <td style="white-space:nowrap"><button class="btn sm" onclick="sendToInvoice('${c.id}')">請求書作成</button> <button class="btn sm" onclick="openCaseHistory('${c.id}')">履歴</button> <button class="btn sm" onclick="openDropbox('${c.id}')">📂</button> <button class="btn sm danger" onclick="deleteCaseWithConfirm('${c.id}')">削除</button></td>
       </tr>`;
     }).join('');
   }
 
-  if(histTbl) {
-    histTbl.innerHTML = DB.history.map(h => `<tr>
-      <td>${h.no}</td><td>${h.caseNo}</td><td>${h.account}</td><td>${h.date}</td><td>${h.supplierName}</td>
-      <td>${h.docType}</td><td>${h.result}</td><td><span style="font-size:10px">${h.reason} / ${h.learn}</span></td>
-      <td><button class="btn sm danger" onclick="deleteHistoryWithConfirm('${h.id}')">削除</button></td>
-    </tr>`).join('');
-  }
+  if(typeof renderCaseThread === 'function') renderCaseThread();
+  if(typeof populateIssuerSelect === 'function') populateIssuerSelect();
+  if(typeof renderCustAccountView === 'function') renderCustAccountView();
 
   renderDashboard();
 
@@ -869,7 +825,7 @@ function checkDuplicates() {
 function openAccountModal() {
   document.getElementById('modalTitle').textContent = "Amazonアカウント新規登録 (全41項目)";
   document.getElementById('m_dbKey').value = '';
-  const fields = ['no','id','pw','name','token','inv','store','storePhone','email','manager','bankNo','bankHolder','bankName','cardNo','cardHolder','zip','address','building','phone','returnName','returnZip','returnAddr','returnBldg','frontUrl','assuranceAddr','assuranceNo','emergencyEmail','emergencyPhone','loginSecName','loginSecEmail','loginSecMobile','regName','regIdProof','regPhone','regZip','regAddress','regEmail','regCorpName','regStoreName','regManager','regFixedPhone'];
+  const fields = ['no','id','pw','name','token','inv','store','storePhone','email','manager','bankNo','bankHolder','bankName','cardNo','cardHolder','zip','address','building','phone','returnName','returnZip','returnAddr','returnBldg','frontUrl','assuranceAddr','assuranceNo','emergencyEmail','emergencyPhone','loginSecName','loginSecEmail','loginSecMobile','regName','regIdProof','regPhone','regZip','regAddress','regEmail','regCorpName','regStoreName','regManager','regFixedPhone','customer'];
   fields.forEach(f => {
     const el = document.getElementById('m_' + f);
     if(el) { el.value = ''; el.classList.remove('dup-warn'); }
@@ -884,7 +840,7 @@ function editAccount(id) {
   document.getElementById('modalTitle').textContent = "Amazonアカウント詳細編集 (重複個別色づけ): " + a.id;
   document.getElementById('m_dbKey').value = a.id;
   
-  const fields = ['no','id','pw','name','token','inv','store','storePhone','email','manager','bankNo','bankHolder','bankName','cardNo','cardHolder','zip','address','building','phone','returnName','returnZip','returnAddr','returnBldg','frontUrl','assuranceAddr','assuranceNo','emergencyEmail','emergencyPhone','loginSecName','loginSecEmail','loginSecMobile','regName','regIdProof','regPhone','regZip','regAddress','regEmail','regCorpName','regStoreName','regManager','regFixedPhone'];
+  const fields = ['no','id','pw','name','token','inv','store','storePhone','email','manager','bankNo','bankHolder','bankName','cardNo','cardHolder','zip','address','building','phone','returnName','returnZip','returnAddr','returnBldg','frontUrl','assuranceAddr','assuranceNo','emergencyEmail','emergencyPhone','loginSecName','loginSecEmail','loginSecMobile','regName','regIdProof','regPhone','regZip','regAddress','regEmail','regCorpName','regStoreName','regManager','regFixedPhone','customer'];
   fields.forEach(f => {
     const el = document.getElementById('m_' + f);
     if(el) { el.value = a[f] || ''; el.classList.remove('dup-warn'); }
@@ -899,7 +855,7 @@ function closeAccountModal() {
 
 function saveAccountModal() {
   const dbKey = document.getElementById('m_dbKey').value;
-  const fields = ['no','id','pw','name','token','inv','store','storePhone','email','manager','bankNo','bankHolder','bankName','cardNo','cardHolder','zip','address','building','phone','returnName','returnZip','returnAddr','returnBldg','frontUrl','assuranceAddr','assuranceNo','emergencyEmail','emergencyPhone','loginSecName','loginSecEmail','loginSecMobile','regName','regIdProof','regPhone','regZip','regAddress','regEmail','regCorpName','regStoreName','regManager','regFixedPhone'];
+  const fields = ['no','id','pw','name','token','inv','store','storePhone','email','manager','bankNo','bankHolder','bankName','cardNo','cardHolder','zip','address','building','phone','returnName','returnZip','returnAddr','returnBldg','frontUrl','assuranceAddr','assuranceNo','emergencyEmail','emergencyPhone','loginSecName','loginSecEmail','loginSecMobile','regName','regIdProof','regPhone','regZip','regAddress','regEmail','regCorpName','regStoreName','regManager','regFixedPhone','customer'];
   
   let newData = {};
   fields.forEach(f => {
@@ -960,12 +916,14 @@ function renderDashboard() {
   const urgentEl = document.getElementById('dashUrgentList');
   const accSumEl = document.getElementById('dashAccountSummary');
   if(!sumEl) return;
+  const _cases = DB.cases.filter(window._rowPassCase);
+  const _accs = DB.accounts.filter(window._rowPassAcc);
 
-  const activeCount = DB.cases.filter(c => c.status === '対応中').length;
+  const activeCount = _cases.filter(c => c.status === '対応中').length;
   const todayStr = new Date().toISOString().slice(0,10);
-  const urgentCount = DB.cases.filter(c => c.status === '対応中' && c.deadline && Math.ceil((new Date(c.deadline) - new Date(todayStr)) / (1000*60*60*24)) <= 3).length;
-  const approvedCount = DB.cases.filter(c => c.status === '承認(復活)' || c.result === '承認(復活)').length;
-  const totalAccs = DB.accounts.length;
+  const urgentCount = _cases.filter(c => c.status === '対応中' && c.deadline && Math.ceil((new Date(c.deadline) - new Date(todayStr)) / (1000*60*60*24)) <= 3).length;
+  const approvedCount = _cases.filter(c => c.status === '承認(復活)' || c.result === '承認(復活)').length;
+  const totalAccs = _accs.length;
 
   sumEl.innerHTML = `
     <div class="sum-chip">登録アカウント数<b>${totalAccs} 件</b></div>
@@ -974,12 +932,17 @@ function renderDashboard() {
     <div class="sum-chip">承認(出品再開)<b style="color:var(--ok)">${approvedCount} 件</b></div>
   `;
 
-  const urgentArr = DB.cases.filter(c => c.status === '対応中' && c.deadline && Math.ceil((new Date(c.deadline) - new Date(todayStr)) / (1000*60*60*24)) <= 3);
+  const urgentArr = _cases.filter(c => c.status === '対応中' && c.deadline && Math.ceil((new Date(c.deadline) - new Date(todayStr)) / (1000*60*60*24)) <= 3);
   urgentEl.innerHTML = urgentArr.length ? `<table class="list"><tr><th>No</th><th>アカウント</th><th>店舗名</th><th>ASIN</th><th>回答期限</th><th>残日</th></tr>` +
     urgentArr.map(c => `<tr><td>${c.no}</td><td>${c.account}</td><td>${c.store}</td><td><b>${c.asin}</b></td><td>${c.deadline}</td><td><span class="badge danger">残り${Math.ceil((new Date(c.deadline) - new Date(todayStr)) / (1000*60*60*24))}日</span></td></tr>`).join('') + `</table>` : '<div style="color:var(--muted);padding:8px">現在、期限3日以内の急ぎの案件はありません。</div>';
 
+  const weekEl = document.getElementById('dashWeekList');
+  if(weekEl){
+    const wk = _cases.filter(c => c.status === '対応中' && c.deadline && (function(){var r=Math.ceil((new Date(c.deadline)-new Date(todayStr))/(1000*60*60*24));return r>=0 && r<=7;})());
+    weekEl.innerHTML = wk.length ? '<table class="list"><tr><th>No</th><th>アカウント</th><th>店舗</th><th>ASIN</th><th>回答期限</th><th>残</th></tr>' + wk.map(function(c){var r=Math.ceil((new Date(c.deadline)-new Date(todayStr))/(1000*60*60*24));return '<tr><td>'+c.no+'</td><td>'+c.account+'</td><td>'+c.store+'</td><td><b>'+c.asin+'</b></td><td>'+c.deadline+'</td><td><span class="'+(r<=3?'badge danger':'badge')+'">'+r+'日</span></td></tr>';}).join('') + '</table>' : '<div style="color:var(--muted);padding:8px">今週(7日以内)の期限案件はありません。</div>';
+  }
   accSumEl.innerHTML = `<table class="list"><tr><th>ID(メール)</th><th>正式名称</th><th>ストア名</th><th>登録番号(インボイス)</th></tr>` +
-    DB.accounts.map(a => `<tr><td><b>${a.id}</b></td><td>${a.name}</td><td>${a.store}</td><td>${a.inv}</td></tr>`).join('') + `</table>`;
+    _accs.map(a => `<tr><td><b>${a.id}</b></td><td>${a.name}</td><td>${a.store}</td><td>${a.inv}</td></tr>`).join('') + `</table>`;
 }
 
 // 請求書明細行
@@ -1105,26 +1068,9 @@ function importData(event) {
 
 renderLines();
 initUI();
-<\/script>
+</script>
 
-<script>
-/* === 統合シェル連携: 案件 → 請求書発行アプリ === */
-function sendToInvoice(caseId){
-  try{
-    var c=(DB.cases||[]).find(function(x){return x.id===caseId;});
-    if(!c){alert('案件が見つかりません');return;}
-    var acc=(DB.accounts||[]).find(function(a){return a.id===c.account;})||{};
-    parent.postMessage({type:'amz:createInvoice',payload:{
-      subject:'真贋対策提出用 請求書（ASIN:'+(c.asin||'-')+'）',
-      note:'案件№'+c.no+' '+(c.store||'')+' / 種別:'+(c.type||'')+' / 対象ASIN:'+(c.asin||'-')+' 型番:'+(c.model||'-'),
-      productName:c.productName||'',model:c.model||'',asin:c.asin||'',account:c.account||'',store:acc.store||''
-    }},'*');
-  }catch(e){alert('請求書連携でエラー: '+e.message);}
-}
-<\/script>
-</body>
-</html></script>
-  <script type="text/html" id="doc-inv"><!DOCTYPE html>
+<script type="text/html" id="doc-inv"><!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -3306,59 +3252,163 @@ $('bkImportFile').addEventListener('change',()=>{
 })();
 <\/script>
 <script>
-/* === 統合シェル連携: 案件データを書類作成フォームへプリフィル === */
-window.addEventListener('message',function(e){
-  var d=e.data; if(!d||d.type!=='inv:prefill')return;
-  var p=d.payload||{};
-  try{
-    var t=document.querySelector('.tab[data-pane="create"]'); if(t)t.click();
-    if(typeof $==='function'){
-      if($('fSubject'))$('fSubject').value=p.subject||'';
-      if($('fNote'))$('fNote').value=p.note||'';
-    }
-    if(typeof lines!=='undefined'&&typeof renderLines==='function'){
-      lines.push({id:(typeof uid==='function'?uid():String(Date.now())),pid:'',name:p.productName||'',code:'',model:p.model||'',jan:'',qty:1,unit:'個',price:'',rate:10});
-      renderLines();
-      if(typeof preview==='function')preview();
-    }
-  }catch(err){console.error('prefill error',err);}
-});
+window.__invBridge = {
+  ready: true,
+  issuers: function(){ return S.issuers; },
+  clients: function(){ return S.clients; },
+  uid: function(){ return uid(); },
+  byId: function(id){ return document.getElementById(id); },
+  pushLine: function(o){ lines.push(o); },
+  gotoCreate: function(){ var t=document.querySelector('.tab[data-pane="create"]'); if(t)t.click(); },
+  renderIssuers: function(){ renderIssuers(); },
+  renderClients: function(){ renderClients(); },
+  renderLines: function(){ renderLines(); },
+  preview: function(){ if(typeof preview==='function') preview(); },
+  save: function(){ if(typeof save==='function') save(); }
+};
 <\/script>
 </body>
 </html>
 </script>
+<script>
+/* ===== 総合管理 × 請求書発行(vo24) 連携レイヤ v5 ===== */
+(function(){ var frame=document.getElementById('invEmbed'); if(frame){ var bs=String.fromCharCode(92); frame.srcdoc=document.getElementById('doc-inv').textContent.split('<'+bs+'/script>').join('<'+'/script>'); } })();
 
-  <script>
-  (function(){
-    function unesc(s){return s.split('<\\/script>').join('<'+'/script>');}
-    var frmAmz=document.getElementById('frmAmz');
-    var frmInv=document.getElementById('frmInv');
-    frmAmz.srcdoc=unesc(document.getElementById('doc-amz').textContent);
-    frmInv.srcdoc=unesc(document.getElementById('doc-inv').textContent);
+function invBridge(){ var f=document.getElementById('invEmbed'); return f && f.contentWindow && f.contentWindow.__invBridge; }
+function whenInvReady(cb, tries){ tries=(tries==null)?60:tries; var b=invBridge(); if(b&&b.ready){cb(b);return;} if(tries<=0)return; setTimeout(function(){whenInvReady(cb,tries-1);},100); }
+function invReady(cb, tries){ tries=(tries==null)?60:tries; var b=invBridge(); if(b&&b.ready){cb(b);return;} if(tries<=0){alert('請求書発行の読み込み中です。タブ「5. 請求書発行」を一度開いてから再度お試しください。');return;} setTimeout(function(){invReady(cb,tries-1);},100); }
+function gotoInvoiceTab(){ var t=document.querySelector('.tab[data-pane="invoice"]'); if(t) t.click(); }
+function nowLocalDT(){ var d=new Date(), p=function(n){return (n<10?'0':'')+n;}; return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes()); }
+function dateStamp(){ var d=new Date(), p=function(n){return (n<10?'0':'')+n;}; return ''+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate()); }
+function uid2(){ return Date.now().toString(36)+Math.floor(Math.random()*1000000).toString(36); }
+function custName(id){ if(!id) return '自社'; var c=(DB.customers||[]).find(function(x){return x.id===id;}); return c?c.name:'(不明)'; }
+function sanitizeName(s){ return String(s||'').replace(/[\/:*?"<>|\s]+/g,'').replace(/[：？＊／]/g,''); }
+function buildDocName(c, dt, docType, direction, suffix){ var ymd=(dt||'').slice(0,10).replace(/-/g,''); var parts=[ymd, sanitizeName(docType), (direction==='受信'?'受信':'発信')]; if(suffix) parts.push(sanitizeName(suffix)); return parts.filter(Boolean).join('_'); }
+function caseFolderName(c){ return ['案件'+(c.no||''), sanitizeName(c.asin), sanitizeName((c.account||'').split('@')[0])].filter(Boolean).join('_'); }
 
-    function showApp(name){
-      document.querySelectorAll('.app-switch button').forEach(function(b){
-        b.classList.toggle('on', b.dataset.app===name);
-      });
-      frmAmz.classList.toggle('on', name==='amz');
-      frmInv.classList.toggle('on', name==='inv');
-    }
-    document.querySelectorAll('.app-switch button').forEach(function(b){
-      b.addEventListener('click',function(){showApp(b.dataset.app);});
-    });
+/* 取引先(宛名) ← 台帳 自動反映 */
+function syncClientsFromLedger(){
+  whenInvReady(function(b){
+    var clients=b.clients(); var bySrc={}; clients.forEach(function(c){ if(c.srcAcc) bySrc[c.srcAcc]=c; }); var liveIds={};
+    (DB.accounts||[]).forEach(function(a){ liveIds[a.id]=true; var nm=(a.name||a.regCorpName||'').trim(); if(!nm) return; var invNo=(a.inv&&a.inv!=='空欄'&&a.inv!=='NaN')?a.inv:'';
+      var data={ name:nm, hono:'御中', zip:a.zip||'', addr:((a.address||'')+' '+(a.building||'')).trim(), person:a.manager||'', tel:a.phone||a.storePhone||'', mail:a.email||a.id||'', inv:invNo, srcAcc:a.id };
+      var ex=bySrc[a.id]; if(ex){ for(var k in data){ ex[k]=data[k]; } } else { data.id=b.uid(); clients.push(data); } });
+    for(var i=clients.length-1;i>=0;i--){ if(clients[i].srcAcc && !liveIds[clients[i].srcAcc]) clients.splice(i,1); }
+    b.renderClients(); b.save();
+  });
+}
+function migrateSuppliersOnce(){ if(localStorage.getItem('amz_v6_migrated_suppliers')) return; whenInvReady(function(b){ var iss=b.issuers(); var names={}; iss.forEach(function(i){names[(i.name||'').trim()]=true;}); (DB.suppliers||[]).forEach(function(sp){ var nm=(sp.name||'').trim(); if(!nm||names[nm])return; iss.push({id:b.uid(),name:nm,code:'S'+(iss.length+1),inv:'',zip:'',addr:sp.address||'',tel:sp.phone||'',mail:'',person:'',bank:'',url:sp.url||'',sealText:'',sealImg:'',logoImg:''}); names[nm]=true; }); b.renderIssuers(); b.save(); localStorage.setItem('amz_v6_migrated_suppliers','1'); populateIssuerSelect(); }); }
+function populateIssuerSelect(){ var sel=document.getElementById('hIssuer'); if(!sel) return; var b=invBridge(); if(b&&b.ready){ var iss=b.issuers()||[]; var opts='<option value="">（発行元なし）</option>'; iss.forEach(function(i){var n=(i.name||''); opts+='<option value="'+n.replace(/"/g,'&quot;')+'">'+n+'</option>';}); sel.innerHTML=opts; } else { sel.innerHTML='<option value="">請求書タブを開くと発行元が読み込まれます</option>'; whenInvReady(function(){ populateIssuerSelect(); }); } }
 
-    // アカウント側 → 請求書側 の連携リレー
-    window.addEventListener('message',function(e){
-      var d=e.data; if(!d)return;
-      if(d.type==='amz:createInvoice'){
-        showApp('inv');
-        var send=function(){ frmInv.contentWindow.postMessage({type:'inv:prefill',payload:d.payload},'*'); };
-        // 念のため iframe ロード完了を待ってから送信
-        if(frmInv.contentWindow && frmInv.contentDocument && frmInv.contentDocument.readyState==='complete'){ send(); }
-        else { frmInv.addEventListener('load', send, {once:true}); setTimeout(send,300); }
-      }
-    });
-  })();
-  </script>
+/* 事案別スレッド */
+function renderCaseThread(){
+  var sel=document.getElementById('hCaseId'); if(!sel) return;
+  if(!sel.value && DB.cases.length){ sel.value=DB.cases[0].id; }
+  var caseId=sel.value; var c=DB.cases.find(function(x){return x.id===caseId;}); var Q=String.fromCharCode(39);
+  var du=document.getElementById('hDropboxUrl'); if(du) du.value=(c&&c.dropboxUrl)||'';
+  var sum=document.getElementById('hCaseSummary');
+  if(sum){ sum.innerHTML = c ? ('ASIN: <b>'+(c.asin||'-')+'</b> ／ 店舗: '+(c.store||'-')+' ／ 委託元: '+custName(((DB.accounts||[]).find(function(a){return a.id===c.account;})||{}).customer)+' ／ ステータス: '+(c.status||'-')+' ／ 回答期限: '+(c.deadline||'-')+' ／ 推奨フォルダ: '+(c?caseFolderName(c):'')) : '案件がありません'; }
+  var box=document.getElementById('caseThread');
+  if(box){
+    var evs=DB.history.filter(function(h){return h.caseId===caseId;}); evs.sort(function(a,b){ return (a.datetime||a.date||'').localeCompare(b.datetime||b.date||''); });
+    if(!evs.length){ box.innerHTML='<div style="color:var(--muted);padding:10px">この事案のやり取りはまだありません。下のフォームから記録してください。</div>'; }
+    else { box.innerHTML = evs.map(function(h){
+      var isOut=(h.direction||'発信')==='発信'; var color=isOut?'var(--indigo)':'var(--ok)'; var arrow=isOut?'↑ 発信':'↓ 受信'; var dt=(h.datetime||h.date||'').replace('T',' ');
+      var docLine=h.docType?('書類: '+h.docType+(h.issuer?'（発行元: '+h.issuer+'）':'')):'';
+      var who=isOut?(h.target?('送信先: '+h.target):''):(h.target?('差出人: '+h.target):'');
+      var fileLine=h.fileName?('<div style="font-size:11px;margin-top:2px">📄 <b>'+h.fileName+'</b> <button class="btn sm" onclick="copyHistFile('+Q+h.id+Q+')">コピー</button></div>'):'';
+      var rl=[]; if(h.reason) rl.push('理由: '+h.reason); if(h.learn) rl.push('対策: '+h.learn); if(h.memo) rl.push('メモ: '+h.memo);
+      return '<div style="border-left:4px solid '+color+';background:#F7F9FC;border-radius:4px;padding:8px 12px;margin-bottom:8px;">'
+        +'<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span style="font-weight:700;color:'+color+'">'+arrow+'　<span style="color:var(--ink)">'+dt+'</span></span>'
+        +'<span><span class="badge">'+(h.result||'-')+'</span> <button class="btn sm danger" onclick="deleteHistoryWithConfirm('+Q+h.id+Q+')">削除</button></span></div>'
+        +(docLine?('<div style="font-size:11px;margin-top:3px">'+docLine+'</div>'):'')+(who?('<div style="font-size:11px;color:var(--muted)">'+who+'</div>'):'')+fileLine
+        +(rl.length?('<div style="font-size:11px;color:var(--muted);margin-top:2px">'+rl.join(' ／ ')+'</div>'):'')+'</div>';
+    }).join(''); }
+  }
+  var histTbl=document.querySelector('#historyTable tbody');
+  if(histTbl){ var all=DB.history.slice().sort(function(a,b){ return (b.datetime||b.date||'').localeCompare(a.datetime||a.date||''); });
+    histTbl.innerHTML = all.map(function(h){ var dt=(h.datetime||h.date||'').replace('T',' '); var other=(h.direction==='受信')?(h.target||''):(h.issuer||h.supplierName||''); return '<tr><td>'+dt+'</td><td>'+(h.caseNo||'')+'</td><td>'+(h.account||'')+'</td><td>'+(h.direction||'発信')+'</td><td>'+(h.docType||'')+'</td><td>'+other+'</td><td>'+(h.result||'')+'</td><td><span style="font-size:10px">'+(h.fileName||'')+'</span></td><td><button class="btn sm danger" onclick="deleteHistoryWithConfirm('+Q+h.id+Q+')">削除</button></td></tr>'; }).join(''); }
+  var dtEl=document.getElementById('hDateTime'); if(dtEl && !dtEl.value){ dtEl.value=nowLocalDT(); }
+}
+function openCaseHistory(caseId){ var tab=document.querySelector('.tab[data-pane="complain-history"]'); if(tab) tab.click(); var sel=document.getElementById('hCaseId'); if(sel) sel.value=caseId; renderCaseThread(); }
+function autoFileName(){ var caseId=document.getElementById('hCaseId').value; var c=DB.cases.find(function(x){return x.id===caseId;}); if(!c){alert('先に事案を選択してください');return;} var dt=document.getElementById('hDateTime').value||nowLocalDT(); document.getElementById('hFileName').value=buildDocName(c,dt,document.getElementById('hDocType').value,document.getElementById('hDirection').value,document.getElementById('hFileSuffix').value); }
+function copyHistFile(id){ var h=(DB.history||[]).find(function(x){return x.id===id;}); if(!h||!h.fileName)return; var t=h.fileName; if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(function(){},function(){}); } else { var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(e){} ta.remove(); } alert('コピーしました:\n'+t); }
+function saveDropboxUrl(){ var caseId=document.getElementById('hCaseId').value; var c=DB.cases.find(function(x){return x.id===caseId;}); if(!c){alert('先に事案を選択してください');return;} c.dropboxUrl=(document.getElementById('hDropboxUrl').value||'').trim(); persist(); alert('原本フォルダURLを保存しました'); }
+function openDropbox(caseId){ var c; if(caseId){ c=DB.cases.find(function(x){return x.id===caseId;}); } else { var sel=document.getElementById('hCaseId'); c=DB.cases.find(function(x){return x.id===(sel&&sel.value);}); } if(!c){alert('事案が見つかりません');return;} var u=(c.dropboxUrl||'').trim(); if(!u){ alert('この事案の原本フォルダURLが未設定です。\n「6. 対応・提出履歴」タブで設定してください。\n推奨フォルダ名: '+caseFolderName(c)); return; } window.open(u,'_blank'); }
+
+/* 案件→請求書プリフィル */
+function sendToInvoice(caseId){
+  var c=(DB.cases||[]).find(function(x){return x.id===caseId;}); if(!c){alert('案件が見つかりません');return;} var acc=(DB.accounts||[]).find(function(a){return a.id===c.account;})||{};
+  gotoInvoiceTab();
+  invReady(function(b){ try{ b.gotoCreate(); var sub=b.byId('fSubject'); if(sub) sub.value='真贋対策提出用 請求書（ASIN:'+(c.asin||'-')+'）'; var note=b.byId('fNote'); if(note) note.value='案件№'+c.no+' '+(c.store||'')+' / 種別:'+(c.type||'')+' / 対象ASIN:'+(c.asin||'-')+' 型番:'+(c.model||'-'); b.pushLine({id:b.uid(),pid:'',name:c.productName||'',code:'',model:c.model||'',jan:'',qty:1,unit:'個',price:'',rate:10}); b.renderLines(); var accName=(acc.name||acc.regCorpName||'').trim(); var selc=b.byId('fClient'); if(accName && selc){ var found=(b.clients()||[]).find(function(cl){return (cl.name||'').trim()===accName;}); if(found) selc.value=found.id; } b.preview(); }catch(err){ console.error(err); } });
+}
+
+/* ===== 顧客（委託元）マスタ ===== */
+function _saveCustomersLS(){ localStorage.setItem('amz_v6_customers', JSON.stringify(DB.customers||[])); }
+function clearCustomerForm(){ ['custEditId','custName','custPerson','custPhone','custEmail','custFee','custMemo'].forEach(function(id){var e=document.getElementById(id); if(e)e.value='';}); var ft=document.getElementById('custFeeType'); if(ft)ft.value='成果報酬'; }
+function saveCustomer(){ if(!DB.customers) DB.customers=[]; var id=document.getElementById('custEditId').value; var obj={ id:id||('cust_'+Date.now()), name:document.getElementById('custName').value.trim(), person:document.getElementById('custPerson').value, phone:document.getElementById('custPhone').value, email:document.getElementById('custEmail').value, feeType:document.getElementById('custFeeType').value, fee:document.getElementById('custFee').value, memo:document.getElementById('custMemo').value }; if(!obj.name){ alert('顧客名を入力してください'); return; } if(id){ var i=DB.customers.findIndex(function(c){return c.id===id;}); if(i>=0) DB.customers[i]=obj; } else DB.customers.push(obj); _saveCustomersLS(); clearCustomerForm(); renderCustomers(); renderCustomerReport(); renderCustAccountView(); alert('顧客を保存しました'); }
+function editCustomer(id){ var c=(DB.customers||[]).find(function(x){return x.id===id;}); if(!c)return; document.getElementById('custEditId').value=c.id; document.getElementById('custName').value=c.name||''; document.getElementById('custPerson').value=c.person||''; document.getElementById('custPhone').value=c.phone||''; document.getElementById('custEmail').value=c.email||''; document.getElementById('custFeeType').value=c.feeType||'成果報酬'; document.getElementById('custFee').value=c.fee||''; document.getElementById('custMemo').value=c.memo||''; var t=document.querySelector('.tab[data-pane="customers"]'); if(t)t.click(); }
+function deleteCustomer(id){ confirmTwoTimes('この顧客(委託元)を削除します。紐付くアカウントは自社扱いに戻ります。', function(){ DB.customers=(DB.customers||[]).filter(function(c){return c.id!==id;}); (DB.accounts||[]).forEach(function(a){ if(a.customer===id) a.customer=''; }); _saveCustomersLS(); persist(); renderCustomers(); renderCustomerReport(); renderCustAccountView(); }); }
+function renderCustomers(){
+  if(!DB.customers) DB.customers=JSON.parse(localStorage.getItem('amz_v6_customers')||'[]'); var Q=String.fromCharCode(39);
+  var gf=document.getElementById('globalCustFilter'); if(gf){ var cur=gf.value||window._filterCust||''; gf.innerHTML='<option value="">全体</option><option value="__self__">自社のみ</option>'+DB.customers.map(function(c){return '<option value="'+c.id+'">'+c.name+'</option>';}).join(''); gf.value=cur; }
+  var mc=document.getElementById('m_customer'); if(mc){ var mcur=mc.value; mc.innerHTML='<option value="">（自社）</option>'+DB.customers.map(function(c){return '<option value="'+c.id+'">'+c.name+'</option>';}).join(''); mc.value=mcur; }
+  var av=document.getElementById('custAccView'); if(av){ var acur=av.value; av.innerHTML='<option value="__self__">自社（委託元なし）</option><option value="__all__">全体</option>'+DB.customers.map(function(c){return '<option value="'+c.id+'">'+c.name+'</option>';}).join(''); av.value=acur||'__self__'; }
+  var box=document.getElementById('customerList'); if(!box) return;
+  if(!DB.customers.length){ box.innerHTML='<div style="color:var(--muted);padding:8px">顧客(委託元)は未登録です。上のフォームから追加してください。</div>'; return; }
+  box.innerHTML='<table class="list"><tr><th>顧客名</th><th>担当</th><th>連絡先</th><th>料金</th><th>担当ｱｶｳﾝﾄ</th><th>操作</th></tr>'+DB.customers.map(function(c){ var accn=(DB.accounts||[]).filter(function(a){return a.customer===c.id;}).length; return '<tr><td><b>'+c.name+'</b></td><td>'+(c.person||'')+'</td><td>'+(c.phone||'')+' '+(c.email||'')+'</td><td>'+(c.feeType||'')+' '+(c.fee?('¥'+Number(c.fee).toLocaleString()):'')+'</td><td>'+accn+'件</td><td style="white-space:nowrap"><button class="btn sm" onclick="viewCustAccounts('+Q+c.id+Q+')">台帳表示</button> <button class="btn sm" onclick="billCustomer('+Q+c.id+Q+')">代行報酬を請求</button> <button class="btn sm" onclick="editCustomer('+Q+c.id+Q+')">編集</button> <button class="btn sm danger" onclick="deleteCustomer('+Q+c.id+Q+')">削除</button></td></tr>'; }).join('')+'</table>';
+}
+function renderCustomerReport(){ var box=document.getElementById('customerReport'); if(!box) return; var groups=[{id:'',name:'自社（委託元なし）'}].concat((DB.customers||[]).map(function(c){return {id:c.id,name:c.name};})); var rows=groups.map(function(g){ var accIds={}; (DB.accounts||[]).forEach(function(a){ if((a.customer||'')===g.id) accIds[a.id]=true; }); var accN=Object.keys(accIds).length; var cs=(DB.cases||[]).filter(function(c){return accIds[c.account];}); var active=cs.filter(function(c){return c.status==='対応中';}).length; var appr=cs.filter(function(c){return c.status==='承認(復活)'||c.result==='承認(復活)';}).length; var rej=cs.filter(function(c){return c.status==='却下'||c.result==='却下';}).length; var rate=(appr+rej)>0?Math.round(appr/(appr+rej)*100):'-'; return {g:g,accN:accN,cn:cs.length,active:active,appr:appr,rej:rej,rate:rate}; }).filter(function(r){ return r.g.id || r.accN>0 || r.cn>0; }); box.innerHTML='<table class="list"><tr><th>委託元</th><th>ｱｶｳﾝﾄ</th><th>案件数</th><th>対応中</th><th>承認(復活)</th><th>却下</th><th>通過率</th></tr>'+rows.map(function(r){ return '<tr><td><b>'+r.g.name+'</b></td><td>'+r.accN+'</td><td>'+r.cn+'</td><td>'+r.active+'</td><td style="color:var(--ok)">'+r.appr+'</td><td style="color:var(--vermilion)">'+r.rej+'</td><td><b>'+(r.rate==='-'?'-':r.rate+'%')+'</b></td></tr>'; }).join('')+'</table>'; }
+function billCustomer(custId){ var c=(DB.customers||[]).find(function(x){return x.id===custId;}); if(!c){alert('顧客が見つかりません');return;} gotoInvoiceTab(); invReady(function(b){ try{ b.gotoCreate(); var clients=b.clients(); var found=clients.find(function(cl){return cl.srcCust===custId;}); if(!found){ found={id:b.uid(),name:c.name,hono:'御中',zip:'',addr:'',person:c.person||'',tel:c.phone||'',mail:c.email||'',inv:'',srcCust:custId}; clients.push(found); b.renderClients(); b.save(); } var sel=b.byId('fClient'); if(sel) sel.value=found.id; var sub=b.byId('fSubject'); if(sub) sub.value='真贋対策代行 手数料のご請求'; b.pushLine({id:b.uid(),pid:'',name:'Amazon真贋対策代行 手数料',code:'',model:'',jan:'',qty:1,unit:'式',price:(c.fee?Number(c.fee):''),rate:10}); b.renderLines(); b.preview(); }catch(e){ console.error(e); } }); }
+
+/* 委託元別 主要6項目アカウント台帳 */
+function buildMainAccountRowsHTML(accs){ var Q=String.fromCharCode(39); if(!accs.length) return '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:12px">該当アカウントはありません。</td></tr>'; return accs.map(function(a){ var d=getDuplicatesMap(a); var st=function(f){return d[f]?'background-color:var(--warn-bg);color:var(--vermilion-dark);font-weight:bold;':'';}; var tags=[]; if(d.bank)tags.push('銀行'); if(d.card)tags.push('クレカ'); if(d.phone)tags.push('電話'); if(d.address)tags.push('住所'); if(d.name)tags.push('名称'); var tagH=tags.length?('<br>'+tags.map(function(t){return '<span class="badge dup-tag">'+t+'重複</span>';}).join(' ')):''; return '<tr><td>'+(a.no==null?'':a.no)+'</td>'
+    +'<td><b>'+(a.id||'')+'</b><br><span style="font-size:10px;color:var(--muted)">PW: '+(a.pw||'')+'</span></td>'
+    +'<td style="'+st('name')+'">'+(a.name||'')+tagH+'</td>'
+    +'<td><b>'+(a.store||'')+'</b><br><span style="font-size:10px;color:var(--muted)">TEL: '+(a.storePhone||'')+' / '+(a.manager||'')+'</span></td>'
+    +'<td style="'+st('bank')+'">'+(a.bankName||'')+' ('+(a.bankNo||'')+')<br><span style="font-size:10px;color:var(--muted)">'+(a.bankHolder||'')+'</span></td>'
+    +'<td style="'+st('card')+'">下4桁: '+(a.cardNo||'')+'</td>'
+    +'<td style="'+st('address')+'">'+(a.zip||'')+' '+(a.address||'')+' '+(a.building||'')+'<br><span style="font-size:10px;'+st('phone')+'">TEL: '+(a.phone||'')+'</span></td>'
+    +'<td style="white-space:nowrap"><button class="btn sm" onclick="editAccount('+Q+a.id+Q+')">編集</button> <button class="btn sm danger" onclick="deleteAccountWithConfirm('+Q+a.id+Q+')">削除</button></td></tr>'; }).join(''); }
+function renderCustAccountView(){ var sel=document.getElementById('custAccView'); if(!sel) return; var v=sel.value||'__self__'; var accs=(DB.accounts||[]).filter(function(a){ if(v==='__all__') return true; if(v==='__self__') return !a.customer; return a.customer===v; }); var tb=document.querySelector('#custAccTable tbody'); if(tb) tb.innerHTML=buildMainAccountRowsHTML(accs); }
+function viewCustAccounts(custId){ var t=document.querySelector('.tab[data-pane="customers"]'); if(t)t.click(); var sel=document.getElementById('custAccView'); if(sel){ sel.value=custId; } renderCustAccountView(); }
+
+/* ===== 絞り込み・検索 ===== */
+window._rowPassAcc=function(a){ var f=window._filterCust; if(f==='__self__'){ if(a.customer) return false; } else if(f){ if(a.customer!==f) return false; } var t=(window._searchAccTerm||'').toLowerCase(); if(t){ var hay=[a.id,a.name,a.store,a.manager,a.address,a.bankNo,custName(a.customer)].join(' ').toLowerCase(); if(hay.indexOf(t)<0) return false; } return true; };
+window._rowPassCase=function(c){ var acc=(DB.accounts||[]).find(function(x){return x.id===c.account;})||{}; var f=window._filterCust; if(f==='__self__'){ if(acc.customer) return false; } else if(f){ if(acc.customer!==f) return false; } var t=(window._searchCaseTerm||'').toLowerCase(); if(t){ var hay=[c.asin,c.store,c.account,c.type,c.status,c.productName,custName(acc.customer)].join(' ').toLowerCase(); if(hay.indexOf(t)<0) return false; } return true; };
+function onGlobalFilter(v){ window._filterCust=v; initUI(); }
+function onAccSearch(v){ window._searchAccTerm=v; initUI(); }
+function onCaseSearch(v){ window._searchCaseTerm=v; initUI(); }
+
+/* ===== 一括データ入出力（Excel/CSV・追記/更新）===== */
+function downloadCSV(name, rows){ var nl=String.fromCharCode(13)+String.fromCharCode(10); var csv=rows.map(function(r){return r.map(function(x){var s=(x==null?'':String(x)); if(/[",\n]/.test(s)) s='"'+s.replace(/"/g,'""')+'"'; return s;}).join(',');}).join(nl); var a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,%EF%BB%BF'+encodeURIComponent(csv); a.download=name; document.body.appendChild(a); a.click(); a.remove(); }
+function parseCSV(text){ text=String(text).replace(/^\uFEFF/,''); var rows=[],row=[],cur='',q=false,i,c; text=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n'); for(i=0;i<text.length;i++){ c=text[i]; if(q){ if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; } else { if(c==='"') q=true; else if(c===','){ row.push(cur); cur=''; } else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; } else cur+=c; } } if(cur!==''||row.length){ row.push(cur); rows.push(row); } return rows; }
+function _caseCustName(c){ var a=(DB.accounts||[]).find(function(x){return x.id===c.account;})||{}; return custName(a.customer); }
+var SHEETS = {
+  accounts:{ title:'アカウント台帳', key:'id', list:function(){return DB.accounts;}, after:function(){persist();}, mkNew:function(m){return {id:(m.id||m.email||('acc_'+uid2())), no:DB.accounts.length};},
+    fields:[ {h:'id',get:function(a){return a.id;},set:'id'},{h:'no',get:function(a){return a.no;},set:'no'},{h:'name',get:function(a){return a.name;},set:'name'},{h:'customer_id',get:function(a){return a.customer||'';},set:'customer'},{h:'customer_name',get:function(a){return custName(a.customer);},set:null},{h:'store',get:function(a){return a.store;},set:'store'},{h:'storePhone',get:function(a){return a.storePhone;},set:'storePhone'},{h:'manager',get:function(a){return a.manager;},set:'manager'},{h:'bankName',get:function(a){return a.bankName;},set:'bankName'},{h:'bankNo',get:function(a){return a.bankNo;},set:'bankNo'},{h:'bankHolder',get:function(a){return a.bankHolder;},set:'bankHolder'},{h:'cardNo',get:function(a){return a.cardNo;},set:'cardNo'},{h:'zip',get:function(a){return a.zip;},set:'zip'},{h:'address',get:function(a){return a.address;},set:'address'},{h:'building',get:function(a){return a.building;},set:'building'},{h:'phone',get:function(a){return a.phone;},set:'phone'},{h:'email',get:function(a){return a.email;},set:'email'},{h:'inv',get:function(a){return a.inv;},set:'inv'},{h:'pw',get:function(a){return a.pw;},set:'pw'} ] },
+  cases:{ title:'案件一覧', key:'id', list:function(){return DB.cases;}, after:function(){persist();}, mkNew:function(m){return {id:(m.id||('c_'+uid2())), no:(m.no||(DB.cases.length+1)), count:0, result:'-'};},
+    fields:[ {h:'id',get:function(c){return c.id;},set:'id'},{h:'no',get:function(c){return c.no;},set:'no'},{h:'date',get:function(c){return c.date;},set:'date'},{h:'account',get:function(c){return c.account;},set:'account'},{h:'customer_name',get:function(c){return _caseCustName(c);},set:null},{h:'store',get:function(c){return c.store;},set:'store'},{h:'type',get:function(c){return c.type;},set:'type'},{h:'noticeType',get:function(c){return c.noticeType;},set:'noticeType'},{h:'asin',get:function(c){return c.asin;},set:'asin'},{h:'model',get:function(c){return c.model;},set:'model'},{h:'productName',get:function(c){return c.productName;},set:'productName'},{h:'deadline',get:function(c){return c.deadline;},set:'deadline'},{h:'status',get:function(c){return c.status;},set:'status'},{h:'dropboxUrl',get:function(c){return c.dropboxUrl||'';},set:'dropboxUrl'} ] },
+  history:{ title:'対応履歴', key:'id', list:function(){return DB.history;}, after:function(){persist();}, mkNew:function(m){return {id:(m.id||('h_'+uid2())), no:DB.history.length+1};},
+    fields:[ {h:'id',get:function(h){return h.id;},set:'id'},{h:'datetime',get:function(h){return h.datetime||h.date||'';},set:'datetime'},{h:'caseNo',get:function(h){return h.caseNo;},set:'caseNo'},{h:'account',get:function(h){return h.account;},set:'account'},{h:'direction',get:function(h){return h.direction||'発信';},set:'direction'},{h:'docType',get:function(h){return h.docType;},set:'docType'},{h:'issuer',get:function(h){return h.issuer||h.supplierName||'';},set:'issuer'},{h:'target',get:function(h){return h.target;},set:'target'},{h:'result',get:function(h){return h.result;},set:'result'},{h:'reason',get:function(h){return h.reason;},set:'reason'},{h:'learn',get:function(h){return h.learn;},set:'learn'},{h:'memo',get:function(h){return h.memo||'';},set:'memo'},{h:'fileName',get:function(h){return h.fileName||'';},set:'fileName'} ] },
+  customers:{ title:'顧客(委託元)', key:'id', list:function(){ if(!DB.customers)DB.customers=[]; return DB.customers;}, after:function(){_saveCustomersLS(); renderCustomers(); renderCustomerReport(); renderCustAccountView();}, mkNew:function(m){return {id:(m.id||('cust_'+uid2()))};},
+    fields:[ {h:'id',get:function(c){return c.id;},set:'id'},{h:'name',get:function(c){return c.name;},set:'name'},{h:'person',get:function(c){return c.person;},set:'person'},{h:'phone',get:function(c){return c.phone;},set:'phone'},{h:'email',get:function(c){return c.email;},set:'email'},{h:'feeType',get:function(c){return c.feeType;},set:'feeType'},{h:'fee',get:function(c){return c.fee;},set:'fee'},{h:'memo',get:function(c){return c.memo;},set:'memo'} ] }
+};
+function exportSheet(entity, fmt){ var cfg=SHEETS[entity]; if(!cfg)return; var list=cfg.list(); var aoa=[cfg.fields.map(function(f){return f.h;})]; list.forEach(function(o){ aoa.push(cfg.fields.map(function(f){ var v=f.get?f.get(o):o[f.set]; return v==null?'':v; })); }); if(fmt==='xlsx'){ if(typeof XLSX==='undefined'){ alert('Excel書出はオンライン時のみ利用できます。CSVをご利用ください。'); return; } var ws=XLSX.utils.aoa_to_sheet(aoa); var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,cfg.title.slice(0,28)); XLSX.writeFile(wb, cfg.title+'_'+dateStamp()+'.xlsx'); } else { downloadCSV(cfg.title+'_'+dateStamp()+'.csv', aoa); } }
+function importSheet(entity, file){ if(!file) return; var cfg=SHEETS[entity]; if(!cfg)return; var ext=(file.name.split('.').pop()||'').toLowerCase(); var fr=new FileReader(); fr.onload=function(e){ var rows; try{ if(ext==='xlsx'||ext==='xls'){ if(typeof XLSX==='undefined'){alert('xlsx取込はオンライン時のみ。CSVをご利用ください。');return;} var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'}); var ws=wb.Sheets[wb.SheetNames[0]]; rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:''}); } else { rows=parseCSV(e.target.result); } }catch(err){ alert('ファイルを読めませんでした: '+err.message); return; } if(!rows||rows.length<2){ alert('データ行がありません'); return; } var headers=rows[0].map(function(h){return String(h==null?'':h).trim();}); var add=0,upd=0; for(var i=1;i<rows.length;i++){ var r=rows[i]; if(!r) continue; var allEmpty=true; for(var j=0;j<r.length;j++){ if(String(r[j]==null?'':r[j]).trim()!==''){ allEmpty=false; break; } } if(allEmpty) continue; var map={}; headers.forEach(function(h,idx){ map[h]=(r[idx]==null?'':String(r[idx])); }); var keyVal=map[cfg.key]; var existing=keyVal?cfg.list().find(function(o){return String(o[cfg.key])===String(keyVal);}):null; if(existing){ cfg.fields.forEach(function(f){ if(f.set && f.h!==cfg.key && map[f.h]!==undefined && map[f.h]!==''){ existing[f.set]=map[f.h]; } }); upd++; } else { var o=cfg.mkNew(map); cfg.fields.forEach(function(f){ if(f.set && map[f.h]!==undefined && map[f.h]!==''){ o[f.set]=map[f.h]; } }); cfg.list().push(o); add++; } } cfg.after(); alert('取込完了（'+cfg.title+'）: 更新 '+upd+'件 / 追加 '+add+'件'); }; if(ext==='xlsx'||ext==='xls') fr.readAsArrayBuffer(file); else fr.readAsText(file); }
+
+/* 初期化 */
+(function(){
+  if(!DB.customers) DB.customers=JSON.parse(localStorage.getItem('amz_v6_customers')||'[]');
+  var hc=document.getElementById('hCaseId'); if(hc) hc.addEventListener('change', renderCaseThread);
+  var dtEl=document.getElementById('hDateTime'); if(dtEl && !dtEl.value) dtEl.value=nowLocalDT();
+  renderCustomers(); renderCustomerReport(); renderCustAccountView();
+  if(typeof renderCaseThread==='function') renderCaseThread();
+  whenInvReady(function(){ migrateSuppliersOnce(); syncClientsFromLedger(); populateIssuerSelect(); });
+  var t5=document.querySelector('.tab[data-pane="invoice"]'); if(t5) t5.addEventListener('click', function(){ syncClientsFromLedger(); });
+  var t6=document.querySelector('.tab[data-pane="complain-history"]'); if(t6) t6.addEventListener('click', function(){ populateIssuerSelect(); renderCaseThread(); });
+  var t7=document.querySelector('.tab[data-pane="customers"]'); if(t7) t7.addEventListener('click', function(){ renderCustomers(); renderCustomerReport(); renderCustAccountView(); });
+})();
+</script>
 </body>
 </html>
