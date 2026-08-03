@@ -265,7 +265,15 @@ table.list tr:hover td{background:#FAFBFD}
   <section class="pane" id="pane-invoice">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
       <h2 class="sec" style="margin:0">請求書発行（本格版・総合管理連携）</h2>
-      <span style="font-size:11px;color:var(--muted)">宛名（取引先）はアカウント台帳を自動反映。発行元（仕入先）は「宛元マスタ」で管理。</span>
+      <span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <label style="margin:0;font-size:11px;color:var(--muted)">宛名の表示</label>
+        <select id="invScopeFilter" onchange="onInvScope(this.value)" style="width:auto;min-width:110px;font-size:12px;padding:4px 6px">
+          <option value="all">全体</option>
+          <option value="self">自社</option>
+          <option value="others">他社（委託先）</option>
+        </select>
+        <span style="font-size:11px;color:var(--muted)">宛名＝台帳を自動反映／発行元は「宛元マスタ」</span>
+      </span>
     </div>
     <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">
       案件の「請求書作成」、顧客の「代行報酬を請求」からプリフィルできます。宛元/取引先/商品マスタは請求書内でExcel入出力できます。
@@ -3289,8 +3297,9 @@ function caseFolderName(c){ return ['案件'+(c.no||''), sanitizeName(c.asin), s
 /* 取引先(宛名) ← 台帳 自動反映 */
 function syncClientsFromLedger(){
   whenInvReady(function(b){
+    var scope=window._invScope||'all';
     var clients=b.clients(); var bySrc={}; clients.forEach(function(c){ if(c.srcAcc) bySrc[c.srcAcc]=c; }); var liveIds={};
-    (DB.accounts||[]).forEach(function(a){ liveIds[a.id]=true; var nm=(a.name||a.regCorpName||'').trim(); if(!nm) return; var invNo=(a.inv&&a.inv!=='空欄'&&a.inv!=='NaN')?a.inv:'';
+    (DB.accounts||[]).forEach(function(a){ var inScope=(scope==='all')||(scope==='self'&&!a.customer)||(scope==='others'&&!!a.customer); if(!inScope) return; liveIds[a.id]=true; var nm=(a.name||a.regCorpName||'').trim(); if(!nm) return; var invNo=(a.inv&&a.inv!=='空欄'&&a.inv!=='NaN')?a.inv:'';
       var data={ name:nm, hono:'御中', zip:a.zip||'', addr:((a.address||'')+' '+(a.building||'')).trim(), person:a.manager||'', tel:a.phone||a.storePhone||'', mail:a.email||a.id||'', inv:invNo, srcAcc:a.id };
       var ex=bySrc[a.id]; if(ex){ for(var k in data){ ex[k]=data[k]; } } else { data.id=b.uid(); clients.push(data); } });
     for(var i=clients.length-1;i>=0;i--){ if(clients[i].srcAcc && !liveIds[clients[i].srcAcc]) clients.splice(i,1); }
@@ -3379,6 +3388,8 @@ window._rowPassCase=function(c){ var acc=(DB.accounts||[]).find(function(x){retu
 function onGlobalFilter(v){ window._filterCust=v; initUI(); }
 function onAccSearch(v){ window._searchAccTerm=v; initUI(); }
 function onCaseSearch(v){ window._searchCaseTerm=v; initUI(); }
+window._invScope='all';
+function onInvScope(v){ window._invScope=v; syncClientsFromLedger(); }
 
 /* ===== 一括データ入出力（Excel/CSV・追記/更新）===== */
 function downloadCSV(name, rows){ var nl=String.fromCharCode(13)+String.fromCharCode(10); var csv=rows.map(function(r){return r.map(function(x){var s=(x==null?'':String(x)); if(/[",\n]/.test(s)) s='"'+s.replace(/"/g,'""')+'"'; return s;}).join(',');}).join(nl); var a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,%EF%BB%BF'+encodeURIComponent(csv); a.download=name; document.body.appendChild(a); a.click(); a.remove(); }
