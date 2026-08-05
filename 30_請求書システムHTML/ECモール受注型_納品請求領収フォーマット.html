@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ECモール受注型 帳票フォーマット（納品明細書・請求書・領収書）</title>
+<style>
+:root{
+  --ink:#1a1a1a; --line:#333; --thin:#555; --band:#e9e9e9; --muted:#666;
+  --sans:"Hiragino Kaku Gothic ProN","Yu Gothic","YuGothic",Meiryo,"MS PGothic",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:#dfe3ea;color:var(--ink);font-size:14px;line-height:1.5}
+button,input,select,textarea{font-family:var(--sans)}
+
+/* ===== 操作バー（画面のみ） ===== */
+.bar{background:#1B2A4A;color:#fff;padding:10px 18px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;position:sticky;top:0;z-index:10}
+.bar .ttl{font-size:15px;letter-spacing:.1em;margin-right:8px}
+.bar select,.bar button{border:1px solid #4a5a7a;background:#24365c;color:#fff;border-radius:4px;padding:6px 12px;font-size:13px}
+.bar button.go{background:#C0392B;border-color:#C0392B;font-weight:600}
+.bar button:hover{filter:brightness(1.12)}
+.bar .sp{margin-left:auto;font-size:11px;opacity:.7}
+
+.layout{display:flex;gap:18px;align-items:flex-start;padding:18px;max-width:1400px;margin:0 auto}
+.panel{flex:0 0 360px;background:#fff;border:1px solid #cfd6e2;border-radius:8px;padding:14px;position:sticky;top:64px;max-height:calc(100vh - 84px);overflow:auto}
+.panel h3{font-size:12px;letter-spacing:.08em;color:var(--muted);margin:14px 0 6px;border-left:3px solid #C0392B;padding-left:7px}
+.panel h3:first-child{margin-top:0}
+.fld{margin-bottom:8px}
+.fld label{display:block;font-size:11px;color:var(--muted);margin-bottom:2px}
+.fld input,.fld textarea,.fld select{width:100%;border:1px solid #cfd6e2;border-radius:4px;padding:6px 8px;font-size:13px}
+.fld textarea{resize:vertical;min-height:52px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.four{display:grid;grid-template-columns:2.4fr 2.6fr .9fr .8fr .5fr;gap:6px;align-items:center;margin-bottom:6px}
+.four input{width:100%;border:1px solid #cfd6e2;border-radius:4px;padding:5px 6px;font-size:12px}
+.four .del{border:1px solid #e0b4ae;background:#fff;color:#C0392B;border-radius:4px;padding:5px 0;font-size:12px;cursor:pointer}
+.panel .addrow{border:1px dashed #b9c2d2;background:#f6f8fb;color:#334;border-radius:4px;padding:6px;width:100%;font-size:12px;cursor:pointer;margin-top:2px}
+.panel .hint{font-size:10.5px;color:#8892a4;line-height:1.6;margin-top:4px}
+
+.stage{flex:1;overflow:auto}
+
+/* ===== 帳票（A4） ===== */
+.sheet{
+  width:210mm;min-height:297mm;background:#fff;margin:0 auto;
+  padding:14mm 13mm;position:relative;
+  box-shadow:0 4px 20px rgba(20,30,60,.18);
+  color:#111;font-size:10pt;
+}
+.doc{border:.6pt solid #7a7a7a;border-radius:2.5mm;min-height:269mm;padding:9mm 9mm 8mm;position:relative}
+.doc.receipt{border:none;border-radius:0;padding:4mm 6mm}
+
+/* 見出し */
+.hd{position:relative;margin-bottom:6mm}
+.hd .title{text-align:center;font-size:23pt;letter-spacing:.5em;font-weight:700;padding-left:.5em;line-height:1.1;padding-top:2mm}
+.hd .issue{position:absolute;top:3mm;right:0;font-size:9pt}
+.hd .issue b{font-weight:400;margin-right:9mm}
+
+/* 注文番号ボックス */
+.ordbox{display:flex;justify-content:flex-end;margin-bottom:5mm}
+.ordbox table{border-collapse:collapse;font-size:8.5pt}
+.ordbox td{border:.5pt solid #6b6b6b;padding:1.3mm 2.4mm;white-space:nowrap}
+.ordbox td.k{background:#fff}
+
+.greet{font-size:9pt;line-height:1.7;margin-bottom:5mm}
+
+/* 宛先ボックス */
+.parties{display:flex;gap:6mm;margin-bottom:6mm}
+.party{flex:1;border:.5pt solid #8a8a8a}
+.party .ph{background:var(--band);border-bottom:.5pt solid #8a8a8a;padding:1.6mm 2.4mm;font-size:8.5pt;font-weight:600}
+.party .pb{padding:2.4mm 2.4mm;font-size:9pt;line-height:1.7;min-height:20mm}
+.party .nm{font-size:11pt}
+
+/* 総合計 */
+.grand{display:flex;align-items:baseline;gap:5mm;margin-bottom:1.5mm}
+.grand .lab{font-size:11pt}
+.grand .val{font-size:20pt;font-weight:700;letter-spacing:.02em}
+.rule{border:none;border-top:.7pt solid #4a4a4a;margin-bottom:4mm}
+
+/* 明細表 */
+table.items{width:100%;border-collapse:collapse;font-size:8.8pt}
+table.items th,table.items td{border:.5pt solid #6b6b6b;padding:1.5mm 2mm}
+table.items th{font-weight:600;text-align:center;white-space:nowrap}
+table.items td.code{text-align:left;white-space:nowrap}
+table.items td.name{text-align:left}
+table.items td.num{text-align:right;white-space:nowrap}
+table.items .rlabel{text-align:right;font-weight:600}
+table.items tr.blank td{height:6mm;border-left:none;border-right:none}
+table.items .sumline td{padding:1.6mm 2mm}
+
+.note-foot{font-size:9pt;margin:4mm 0 5mm}
+
+/* フッター（発行者・備考） */
+.foot{display:flex;gap:8mm;font-size:8.8pt;line-height:1.75}
+.foot .issuer{flex:1.3}
+.foot .remark{flex:1}
+.foot .coname{font-size:10pt;font-weight:600}
+
+/* ===== 領収書 固有 ===== */
+.rc-date{text-align:right;font-size:9.5pt;margin-bottom:6mm}
+.rc-title{text-align:center;font-size:22pt;letter-spacing:1em;font-weight:700;padding-left:1em;margin-bottom:8mm}
+.rc-to{display:flex;justify-content:center;align-items:flex-end;gap:2mm;margin-bottom:7mm}
+.rc-to .nm{font-size:15pt;border-bottom:.6pt solid #333;min-width:70mm;text-align:center;padding:0 4mm 1mm}
+.rc-to .sama{font-size:10pt}
+.rc-amt{background:var(--band);text-align:center;font-size:18pt;font-weight:700;padding:3mm 0;margin:0 8mm 3mm}
+.rc-sub{display:flex;justify-content:center;gap:12mm;font-size:9.5pt;margin-bottom:5mm}
+.rc-ack{font-size:9.5pt;margin-bottom:3mm}
+.rc-uchiwake{font-size:10pt;font-weight:600;margin-bottom:2mm}
+.rc-foot{margin-top:7mm;font-size:9pt;line-height:1.8}
+.rc-foot .coname{font-size:13pt;font-weight:700;margin:1mm 0}
+
+/* 印影スペース（社印は入れない：捺印欄のみ任意表示） */
+.seal-space{display:inline-block;width:0}
+
+@media print{
+  body{background:#fff}
+  .bar,.panel{display:none!important}
+  .layout{display:block;padding:0;margin:0}
+  .stage{overflow:visible}
+  .sheet{box-shadow:none;margin:0;width:auto;min-height:auto;padding:0}
+  @page{size:A4;margin:8mm}
+}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <span class="ttl">ECモール受注型 帳票フォーマット</span>
+  <select id="docType">
+    <option value="delivery">納品明細書</option>
+    <option value="invoice">請求書</option>
+    <option value="receipt">領収書</option>
+  </select>
+  <button class="go" id="btnPrint">印刷 / PDF保存</button>
+  <span class="sp">社名・ロゴ・社印は含みません。発行者欄はご自由に編集してください。</span>
+</div>
+
+<div class="layout">
+  <!-- 入力パネル（画面のみ） -->
+  <div class="panel">
+    <h3>基本情報</h3>
+    <div class="two">
+      <div class="fld"><label>発行日付 / 取引年月日</label><input id="issueDate" value="2024-06-26"></div>
+      <div class="fld"><label>注文日</label><input id="orderDate" value="2024-06-26"></div>
+    </div>
+    <div class="fld"><label>注文番号</label><input id="orderNo" value="P180284590638461713"></div>
+
+    <h3>ご注文者</h3>
+    <div class="fld"><label>お名前</label><input id="ordName" value="山中貴博"></div>
+
+    <h3>お届け先</h3>
+    <div class="fld"><label>郵便番号</label><input id="shPost" value="〒212-0012"></div>
+    <div class="fld"><label>住所</label><textarea id="shAddr">神奈川県川崎市幸区中幸町4-46-2グロリアハイツ109号室</textarea></div>
+    <div class="two">
+      <div class="fld"><label>電話番号</label><input id="shTel" value="080-5070-1485"></div>
+      <div class="fld"><label>お名前</label><input id="shName" value="山中貴博"></div>
+    </div>
+
+    <h3>明細</h3>
+    <div id="rows"></div>
+    <button class="addrow" id="addRow">＋ 行を追加</button>
+    <p class="hint">単価は「税込」で入力します。金額＝単価×数量。消費税(内税)は自動計算されます。</p>
+
+    <h3>支払・配送</h3>
+    <div class="two">
+      <div class="fld"><label>お支払い方法 / 支払の種類</label><input id="payType" value="クレジットカード"></div>
+      <div class="fld"><label>消費税率(%)</label><input id="taxRate" value="10"></div>
+    </div>
+    <div class="fld"><label>配送方法</label><input id="shipMethod" value="メール便（日本郵便クリックポスト）"></div>
+    <div class="fld"><label>但し書き（領収書）</label><input id="tadashi" value="商品購入代金として"></div>
+    <div class="fld"><label>備考</label><input id="remark" value=""></div>
+
+    <h3>発行者（自社情報）</h3>
+    <div class="fld"><label>会社名 / 屋号</label><input id="isName" value="〇〇〇〇株式会社"></div>
+    <div class="fld"><label>登録番号（適格請求書）</label><input id="isReg" value="T0000000000000"></div>
+    <div class="two">
+      <div class="fld"><label>郵便番号</label><input id="isPost" value="〒000-0000"></div>
+      <div class="fld"><label>TEL</label><input id="isTel" value="00-0000-0000"></div>
+    </div>
+    <div class="fld"><label>住所</label><input id="isAddr" value="〇〇県〇〇市〇〇町0-0-0"></div>
+    <div class="two">
+      <div class="fld"><label>E-MAIL</label><input id="isMail" value="info@example.com"></div>
+      <div class="fld"><label>営業時間</label><input id="isHours" value="11:00〜19:00"></div>
+    </div>
+    <p class="hint">※ロゴ・社印は入りません。必要な場合はご自身で追加してください。</p>
+  </div>
+
+  <!-- 帳票プレビュー -->
+  <div class="stage">
+    <div class="sheet"><div id="doc"></div></div>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const nl=s=>esc(s).replace(/\n/g,'<br>');
+const yen=n=>Number(n||0).toLocaleString('ja-JP');
+
+/* 明細行モデル */
+let items=[
+  {code:'0619659183813', name:'SDSDUN4-032G-GN6IN 並行輸入品 SDHCカード Ultra 32GB', unit:810, qty:10}
+];
+
+function renderRowInputs(){
+  const box=$('rows'); box.innerHTML='';
+  items.forEach((it,i)=>{
+    const div=document.createElement('div');
+    div.className='four';
+    div.innerHTML=`
+      <input data-i="${i}" data-k="code" value="${esc(it.code)}" placeholder="商品コード">
+      <input data-i="${i}" data-k="name" value="${esc(it.name)}" placeholder="商品名">
+      <input data-i="${i}" data-k="unit" value="${esc(it.unit)}" placeholder="単価(税込)" inputmode="numeric">
+      <input data-i="${i}" data-k="qty"  value="${esc(it.qty)}"  placeholder="数量" inputmode="numeric">
+      <button class="del" data-del="${i}">×</button>`;
+    box.appendChild(div);
+  });
+  box.querySelectorAll('input').forEach(inp=>inp.addEventListener('input',e=>{
+    const i=+e.target.dataset.i, k=e.target.dataset.k;
+    items[i][k]=(k==='unit'||k==='qty')?e.target.value.replace(/[^\d.-]/g,''):e.target.value;
+    render();
+  }));
+  box.querySelectorAll('.del').forEach(b=>b.addEventListener('click',()=>{
+    items.splice(+b.dataset.del,1); if(!items.length)items.push({code:'',name:'',unit:0,qty:0});
+    renderRowInputs(); render();
+  }));
+}
+$('addRow').onclick=()=>{items.push({code:'',name:'',unit:0,qty:0});renderRowInputs();render();};
+
+function calc(){
+  const rate=Number($('taxRate').value||10);
+  let total=0;
+  const lines=items.map(it=>{
+    const amt=Math.round(Number(it.unit||0)*Number(it.qty||0));
+    total+=amt;
+    return {...it, amt};
+  });
+  // 単価は税込 → 合計はすでに内税込。内税額 = total - total/(1+rate/100)
+  const tax=Math.round(total - total/(1+rate/100));
+  return {lines, total, tax, rate};
+}
+
+const DT={
+  delivery:{title:'納品明細書', greet2:'下記のご注文につきまして納品いたしますので、ご確認の程よろしくお願い致します。'},
+  invoice :{title:'請求書',     greet2:'下記のご注文につきまして納品いたしますので、ご確認の程よろしくお願い致します。'}
+};
+
+/* 明細＋合計欄（納品書・請求書 共通） */
+function itemsTableStd(c){
+  let rows=c.lines.map(l=>`
+    <tr>
+      <td class="code">${esc(l.code)}</td>
+      <td class="name">${esc(l.name)}</td>
+      <td class="num">${yen(l.unit)}</td>
+      <td class="num">${yen(l.qty)}</td>
+      <td class="num">${yen(l.amt)}</td>
+    </tr>`).join('');
+  return `
+  <table class="items">
+    <thead>
+      <tr><th style="width:26mm">商品コード</th><th>商品名</th><th style="width:24mm">単価（税込）</th><th style="width:13mm">数量</th><th style="width:18mm">金額</th></tr>
+    </thead>
+    <tbody>
+      ${rows}
+      <tr class="sumline"><td class="rlabel" colspan="4">商品合計</td><td class="num">${yen(c.total)}</td></tr>
+      <tr class="sumline"><td class="rlabel" style="text-align:left" colspan="4">消費税</td><td class="num">${yen(c.tax)}</td></tr>
+      <tr class="sumline"><td class="rlabel" style="text-align:left" colspan="4">消費税${c.rate}%対象分</td><td class="num">${yen(c.tax)}</td></tr>
+      <tr class="sumline"><td class="rlabel" style="text-align:left" colspan="4">注文合計額</td><td class="num">${yen(c.total)}</td></tr>
+      <tr class="sumline"><td class="rlabel" style="text-align:left" colspan="4">消費税${c.rate}%対象（税込）</td><td class="num">${yen(c.total)}</td></tr>
+      <tr class="sumline"><td class="rlabel" style="text-align:left" colspan="4">ご請求額合計</td><td class="num">${yen(c.total)}</td></tr>
+    </tbody>
+  </table>`;
+}
+
+function renderStd(type){
+  const d=DT[type], c=calc();
+  return `
+  <div class="doc">
+    <div class="hd">
+      <div class="issue"><b>発行日付</b>${esc($('issueDate').value)}</div>
+      <div class="title">${d.title}</div>
+    </div>
+
+    <div class="ordbox">
+      <table><tr>
+        <td class="k">注文番号</td><td>${esc($('orderNo').value)}</td>
+        <td class="k">注文日</td><td>${esc($('orderDate').value)}</td>
+      </tr></table>
+    </div>
+
+    <div class="greet">当店でのご購入誠にありがとうございます。<br>${esc(d.greet2)}</div>
+
+    <div class="parties">
+      <div class="party">
+        <div class="ph">ご注文者</div>
+        <div class="pb"><span class="nm">${esc($('ordName').value)}</span> 様</div>
+      </div>
+      <div class="party">
+        <div class="ph">お届け先</div>
+        <div class="pb">
+          ${esc($('shPost').value)}<br>
+          ${nl($('shAddr').value)}<br>
+          電話番号：${esc($('shTel').value)}<br>
+          ${esc($('shName').value)} 様
+        </div>
+      </div>
+    </div>
+
+    <div class="grand"><span class="lab">総合計金額：</span><span class="val">${yen(c.total)}円</span></div>
+    <hr class="rule">
+
+    ${itemsTableStd(c)}
+
+    <div class="note-foot">ご不明な点・お気づきの点がございましたらお気軽にご連絡ください。</div>
+
+    <div class="foot">
+      <div class="issuer">
+        <div class="coname">${esc($('isName').value)}</div>
+        登録番号　${esc($('isReg').value)}<br>
+        ${esc($('isPost').value)}<br>
+        ${esc($('isAddr').value)}<br>
+        TEL：${esc($('isTel').value)}<br>
+        E-MAIL：${esc($('isMail').value)}<br>
+        営業時間：${esc($('isHours').value)}
+      </div>
+      <div class="remark">
+        備考：${esc($('remark').value)}<br>
+        お支払い方法：${esc($('payType').value)}<br>
+        配送方法：${esc($('shipMethod').value)}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* 領収書 */
+function itemsTableReceipt(c){
+  let rows=c.lines.map(l=>`
+    <tr>
+      <td class="name">${esc(l.name)}</td>
+      <td class="num">${yen(l.unit)}</td>
+      <td class="num">${yen(l.qty)}</td>
+      <td class="num">${yen(l.amt)}</td>
+    </tr>`).join('');
+  return `
+  <table class="items">
+    <thead>
+      <tr><th>商品名</th><th style="width:24mm">単価（税込）</th><th style="width:13mm">数量</th><th style="width:18mm">金額</th></tr>
+    </thead>
+    <tbody>
+      ${rows}
+      <tr class="sumline"><td class="rlabel" style="text-align:left">商品合計</td><td colspan="2"></td><td class="num">${yen(c.total)}</td></tr>
+      <tr class="sumline"><td class="rlabel" style="text-align:left">消費税</td><td colspan="2"></td><td class="num">${yen(c.tax)}</td></tr>
+      <tr class="sumline"><td class="rlabel" style="text-align:left">消費税${c.rate}%対象分</td><td colspan="2"></td><td class="num">${yen(c.tax)}</td></tr>
+      <tr class="sumline"><td class="rlabel" style="text-align:left">注文合計額</td><td colspan="2"></td><td class="num">${yen(c.total)}</td></tr>
+      <tr class="sumline"><td class="rlabel" style="text-align:left">消費税${c.rate}%対象（税込）</td><td colspan="2"></td><td class="num">${yen(c.total)}</td></tr>
+      <tr class="sumline"><td class="rlabel" style="text-align:left">ご請求額合計</td><td colspan="2"></td><td class="num">${yen(c.total)}</td></tr>
+    </tbody>
+  </table>`;
+}
+
+function renderReceipt(){
+  const c=calc();
+  return `
+  <div class="doc receipt">
+    <div class="rc-date">取引年月日 ${esc($('issueDate').value)}</div>
+    <div class="rc-title">領収書</div>
+    <div class="rc-to"><span class="nm">${esc($('ordName').value)}</span><span class="sama">様</span></div>
+    <div class="rc-amt">領収金額： ￥${yen(c.total)} －</div>
+    <div class="rc-sub"><span>但し、${esc($('tadashi').value)}</span><span>支払の種類：${esc($('payType').value)}</span></div>
+    <div class="rc-ack">上記金額を正に領収いたしました。</div>
+    <div class="rc-uchiwake">【内 訳】</div>
+    ${itemsTableReceipt(c)}
+    <div class="rc-foot">
+      ${esc($('isPost').value)}<br>
+      ${esc($('isAddr').value)}<br>
+      <div class="coname">${esc($('isName').value)}</div>
+      ・TEL：${esc($('isTel').value)}<br>
+      ・登録番号：${esc($('isReg').value)}
+    </div>
+  </div>`;
+}
+
+function render(){
+  const t=$('docType').value;
+  $('doc').innerHTML = t==='receipt' ? renderReceipt() : renderStd(t);
+}
+
+/* 入力→再描画 */
+['issueDate','orderDate','orderNo','ordName','shPost','shAddr','shTel','shName',
+ 'payType','taxRate','shipMethod','tadashi','remark',
+ 'isName','isReg','isPost','isTel','isAddr','isMail','isHours','docType']
+ .forEach(id=>$(id).addEventListener('input',render));
+$('docType').addEventListener('change',render);
+$('btnPrint').onclick=()=>window.print();
+
+renderRowInputs();
+render();
+</script>
+</body>
+</html>
