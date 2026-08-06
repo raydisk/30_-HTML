@@ -2312,6 +2312,59 @@ function renderAA(type){
 }
 
 // ---- styles (headers) ----
+// ---- AB：JAN列・封書明細票型（実物請求書のフォーマット再現・ロゴ社名印影なし） ----
+function renderAB(type){
+  var mono="font-family:'Courier New','MS Gothic',monospace;";
+  var t=type==='receipt'?'ご領収書':(type==='delivery'?'ご納品書':'ご請求書');
+  var hr='<div style="border-top:0.2mm solid #999;margin:2mm 0"></div>';
+  var head='<div style="display:flex;justify-content:space-between;align-items:flex-start"><div style="width:30%"></div>'
+   +'<div style="font-size:13pt;letter-spacing:.5em;padding-top:2mm">'+t+'</div>'
+   +'<div style="width:32%;text-align:right;font-size:8.6pt;line-height:1.9;'+mono+'">登録番号：　'+esc(ISS.inv)+'<br>'+jdd()+'</div></div>'+hr;
+  var win='<div style="display:flex;justify-content:space-between;margin-top:3mm"><div style="font-size:9pt;line-height:1.8;'+mono+'">000-0000<br>'+esc(CL.addr)+'<br>'+esc(CL.name)+'　様</div>'
+   +'<div style="width:38%;font-size:8.8pt;line-height:1.8;'+mono+'">'+esc(ISS.zip)+'<br>'+esc(ISS.addr)+'<br>'+esc(ISS.name)+'<br>Tel．：'+esc(ISS.tel)+'<br>MAIL：'+esc(ISS.mail)+'　WEB：'+esc(ISS.web)+'</div></div>'
+   +'<div style="font-size:9pt;margin-top:2.5mm;'+mono+'">000000-0000-00</div>'+hr;
+  var atena='<div style="font-size:11.5pt;margin-top:4mm;'+mono+'">'+esc(CL.name)+'　様</div>'
+   +'<div style="font-size:9pt;line-height:1.9;margin-top:2mm">いつも格別のお引立てを賜り誠に有難うございます。<br>下記の通り'+(type==='receipt'?'ご領収の内容をご通知':(type==='delivery'?'ご納品':'ご請求'))+'申し上げます。</div>';
+  function mr(l,v,b){return '<div style="display:flex;border-bottom:0.15mm solid #bbb;padding:1mm 0;font-size:9pt;'+mono+'"><div style="width:32mm">'+l+'</div><div style="width:6mm">：</div><div style="'+(b?'font-weight:700;font-size:10.5pt;':'')+'">'+v+'</div></div>';}
+  var meta='<div style="width:46%">'+mr('お客様番号','000000-0000-00')+mr((type==='receipt'?'領収書No.':(type==='delivery'?'納品書No.':'請求書No.')),''+dno()+'')+mr('締日',''+jdd()+'')+mr((type==='receipt'?'ご領収金額(税込)':(type==='delivery'?'合計金額(税込)':'ご請求金額(税込)')),'￥　'+Number(C.total).toLocaleString(),true)+'</div>';
+  var pay=(type==='invoice')?'<div style="width:48%;font-size:9pt;'+mono+'">'
+   +'<div style="display:flex;border-bottom:0.15mm solid #bbb;padding:1mm 0"><div style="width:30mm">お支払方法：</div><div>下記の口座にお振込願います。</div></div>'
+   +'<div style="display:flex;border-bottom:0.15mm solid #bbb;padding:1mm 0"><div style="width:30mm">お支払期日：</div><div>'+jdd()+'</div></div>'
+   +'<div style="display:flex;padding:1mm 0"><div style="width:30mm">お振込口座：</div><div>'+esc(ISS.bank)+'<br>'+esc(ISS.name)+'</div></div></div>':'<div style="width:48%"></div>';
+  var mid='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-top:4mm">'+meta+pay+'</div>';
+  if(type==='receipt'){
+    return '<div style="'+mono+'">'+head+win+atena+mid
+     +'<div style="font-size:10pt;margin:6mm 0 4mm">但し　上記正に領収いたしました。</div>'+taxSummary()
+     +'<div style="margin-top:6mm;font-size:7.4pt;color:#333">#…非課税または免税／*…軽減税率対象品目／!…8%税率対象品目<span style="float:right">0001/0001</span></div></div>';
+  }
+  var rows='';
+  LINES.forEach(function(L){
+    rows+='<div style="display:flex;border-bottom:0.15mm dotted #999;padding:1.2mm 0;font-size:8.4pt"><div style="flex:1">'+esc(L.name)+(L.rate===8?' *':'')+'</div><div style="width:21%">'+esc(L.model)+'</div><div style="width:15%">'+esc(L.jan)+'</div><div style="width:9%;text-align:right">'+L.qty+' '+esc(L.unit)+'</div><div style="width:10%;text-align:right">'+Number(L.price).toLocaleString()+'</div><div style="width:11%;text-align:right">'+Number(L.qty*L.price).toLocaleString()+'</div></div>';
+  });
+  var meisai='<div style="margin-top:4mm;font-size:8.4pt;line-height:1.5;'+mono+'">'
+   +'<div style="text-align:center;letter-spacing:.1em;border-top:0.2mm solid #999;padding-top:1mm">－商品代金明細－</div>'
+   +'<div style="display:flex;border-bottom:0.15mm dotted #999;padding:1mm 0"><div style="width:20mm">取引日</div><div>'+jds()+'</div></div>'
+   +'<div style="display:flex;border-bottom:0.15mm dotted #999;padding:1mm 0"><div style="width:20mm">伝票No.</div><div>－</div></div>'
+   +'<div style="display:flex;border-bottom:0.15mm dotted #999;padding:1mm 0;color:#333"><div style="flex:1">　品名</div><div style="width:21%">型番【アイテム発注No.】</div><div style="width:15%">JAN／UPCコード</div><div style="width:9%;text-align:right">数量</div><div style="width:10%;text-align:right">単価</div><div style="width:11%;text-align:right">金額</div></div>'
+   +rows
+   +'<div style="height:3mm"></div>'
+   +'<div style="display:flex;border-bottom:0.15mm dotted #999;padding:1mm 0"><div style="width:26mm">売上先CD</div><div>000000-0000</div></div>'
+   +'<div style="display:flex;border-bottom:0.15mm dotted #999;padding:1mm 0"><div style="width:26mm">売上先名</div><div>'+esc(CL.name)+'　様</div></div>'
+   +'<div style="display:flex;justify-content:flex-end;margin-top:3mm"><div style="width:34%;padding-top:1.5mm;font-size:9pt">＜商品代金合計＞</div><div style="width:56%">'
+   +'<div style="border-top:0.7mm double #111;border-bottom:0.7mm double #111;padding:0.8mm 0;display:flex;justify-content:space-between"><span>お買上総額(税抜)</span><span>'+Number(C.sub).toLocaleString()+'</span></div>'
+   +gDot('<div style="display:flex;justify-content:space-between"><span>ご請求金額(税抜)</span><span>'+Number(C.sub).toLocaleString()+'</span></div>')
+   +gDot('<div style="display:flex;justify-content:space-between"><span>(10%対象</span><span>'+Number(C.b10).toLocaleString()+'</span></div>')
+   +gDot('<div style="display:flex;justify-content:space-between"><span>　消費税等</span><span>'+Number(C.x10).toLocaleString()+'　)</span></div>')
+   +gDot('<div style="display:flex;justify-content:space-between"><span>(軽減税率 8%対象</span><span>'+(C.b8?Number(C.b8).toLocaleString():'')+'</span></div>')
+   +gDot('<div style="display:flex;justify-content:space-between"><span>　消費税等</span><span>'+(C.b8?Number(C.x8).toLocaleString():'')+'　)</span></div>')
+   +gDot('<div style="display:flex;justify-content:space-between;font-weight:700"><span>'+(type==='delivery'?'ご納品金額(税込)':'ご請求金額(税込)')+'</span><span>'+Number(C.total).toLocaleString()+'</span></div>')
+   +'</div></div>'
+   +'<div style="margin-top:6mm;font-size:7.4pt;color:#333">#…非課税または免税／*…軽減税率対象品目／!…8%税率対象品目<span style="float:right">0001/0001</span><br>X…全額ご入金済／レ…一部ご入金済</div>'
+   +'</div>';
+  return head+win+atena+mid+meisai;
+}
+
+
 var BIZSTYLES={
  A:{name:'A：標準・センター見出し',font:'mincho',head:'dark',grid:false, header:function(type){
    return '<div style="text-align:center;font-size:22pt;font-weight:700;letter-spacing:.4em">'+DT_B[type]+'</div>'
@@ -2368,7 +2421,8 @@ var BIZSTYLES={
  X:{name:'X：メタグリッド帳票型（オリジナル）',font:'gothic',full:renderX2},
  Y:{name:'Y：レターヘッド文書型（オリジナル）',font:'mincho',full:renderY2},
  Z:{name:'Z：二部構成・切取明細票型（オリジナル）',font:'gothic',full:renderZ2},
- AA:{name:'AA：黒帯・全項目型（ひな型ジャーナル風）',font:'gothic',full:renderAA}
+ AA:{name:'AA：黒帯・全項目型（ひな型ジャーナル風）',font:'gothic',full:renderAA},
+ AB:{name:'AB：JAN列・封書明細票型',font:'gothic',full:renderAB}
 };
 
 
@@ -2422,7 +2476,8 @@ const STYLES={
   s28:{name:'スタンダード28（メタグリッド帳票型）',desc:'フォーマット集（Claude作成）スタンダード28（メタグリッド帳票型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('X',doc);},cap:8},
   s29:{name:'スタンダード29（レターヘッド文書型）',desc:'フォーマット集（Claude作成）スタンダード29（レターヘッド文書型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('Y',doc);},cap:8},
   s30:{name:'スタンダード30（二部構成切取明細票型）',desc:'フォーマット集（Claude作成）スタンダード30（二部構成切取明細票型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('Z',doc);},cap:8},
-  s31:{name:'スタンダード31（グレー帯全項目型）',desc:'フォーマット集（Claude作成）スタンダード31（グレー帯全項目型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('AA',doc);},cap:8}
+  s31:{name:'スタンダード31（グレー帯全項目型）',desc:'フォーマット集（Claude作成）スタンダード31（グレー帯全項目型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('AA',doc);},cap:8},
+  s32:{name:'スタンダード32（JAN列・封書明細票型）',desc:'フォーマット集（Claude作成）スタンダード32（JAN列・封書明細票型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('AB',doc);},cap:15}
 ,
 };
 /* 履歴には画像を持たせない（容量対策）ため、描画時にマスタからIDで画像を解決する */
