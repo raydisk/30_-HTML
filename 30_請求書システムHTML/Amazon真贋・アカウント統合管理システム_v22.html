@@ -1657,6 +1657,7 @@ async function load(){
 }
 /* 旧形式データの移行：入金状態オブジェクト化＋履歴内の画像重複を除去（画像はマスタからIDで解決） */
 function migrate(){
+  if(!S.stamps)S.stamps={};
   (S.docs||[]).forEach(d=>{
     if(!d.pay)d.pay={st:d.paid?'paid':'un',date:'',amount:0};
     if(d.issuer){d.issuer.sealImg='';d.issuer.logoImg='';}
@@ -3474,9 +3475,155 @@ function fitSheet(id){
   box.style.overflow='hidden';
 }
 window.addEventListener('resize',()=>{fitSheet('preview');fitSheet('bpPreview');});
+
+/* ===== 角印・社名ロゴ 自由配置（全様式共通オーバーレイ・様式ごと保存） ===== */
+var STAMP_KIND='seal';
+function stampDefault(kind){
+  return kind==='seal'?{x:0.83,y:0.15,size:0.12,rot:0,op:1,on:true}
+                      :{x:0.28,y:0.07,size:0.20,rot:0,op:1,on:true};
+}
+function stampCfg(style,kind){
+  S.stamps=S.stamps||{};
+  S.stamps[style]=S.stamps[style]||{};
+  if(!S.stamps[style][kind])S.stamps[style][kind]=stampDefault(kind);
+  var c=S.stamps[style][kind];
+  if(c.x==null)c.x=stampDefault(kind).x; if(c.y==null)c.y=stampDefault(kind).y;
+  if(c.size==null)c.size=stampDefault(kind).size; if(c.rot==null)c.rot=0; if(c.op==null)c.op=1;
+  return c;
+}
+function stampImg(doc,kind){
+  var iss=(S.issuers||[]).find(function(i){return i.id===(doc.issuer&&doc.issuer.id);})||{};
+  return kind==='seal'?(iss.sealImg||''):(iss.logoImg||'');
+}
+function applyStamps(mount,doc,isPrint){
+  if(!mount||!doc)return;
+  var sheet=mount.querySelector('.sheet');
+  if(!sheet)return;
+  sheet.style.position='relative';
+  Array.prototype.forEach.call(sheet.querySelectorAll('.stampOv'),function(e){e.remove();});
+  ['logo','seal'].forEach(function(kind){
+    var img=stampImg(doc,kind);
+    var cfg=stampCfg(doc.style,kind);
+    if(!img||!cfg.on)return;
+    var el=document.createElement('img');
+    el.src=img; el.className='stampOv stampOv-'+kind; el.setAttribute('data-kind',kind);
+    el.style.cssText='position:absolute;left:'+(cfg.x*100)+'%;top:'+(cfg.y*100)+'%;width:'+(cfg.size*100)+'%;'
+      +'transform:translate(-50%,-50%) rotate('+(cfg.rot||0)+'deg);opacity:'+(cfg.op==null?1:cfg.op)+';'
+      +'z-index:'+(kind==='seal'?60:55)+';pointer-events:'+(isPrint?'none':'auto')+';cursor:move;'
+      +'-webkit-print-color-adjust:exact;print-color-adjust:exact;user-select:none;';
+    sheet.appendChild(el);
+    if(!isPrint)makeStampDraggable(el,sheet,doc.style,kind);
+  });
+}
+function makeStampDraggable(el,sheet,style,kind){
+  el.addEventListener('mousedown',function(ev){
+    ev.preventDefault();
+    STAMP_KIND=kind; if(typeof syncStampPanel==='function')syncStampPanel();
+    var rect=sheet.getBoundingClientRect();
+    var cfg=stampCfg(style,kind);
+    function mv(e){
+      cfg.x=Math.min(1,Math.max(0,(e.clientX-rect.left)/rect.width));
+      cfg.y=Math.min(1,Math.max(0,(e.clientY-rect.top)/rect.height));
+      el.style.left=(cfg.x*100)+'%'; el.style.top=(cfg.y*100)+'%';
+      if(typeof syncStampPanel==='function')syncStampPanel();
+    }
+    function up(){document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);if(typeof save==='function')save();}
+    document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);
+  });
+}
+function curStyleForStamp(){var s=$('fStyle');return s&&s.value?s.value:'a';}
+function syncStampPanel(){
+  var p=$('stampPanel'); if(!p||p.style.display==='none')return;
+  var style=curStyleForStamp(), kind=STAMP_KIND, cfg=stampCfg(style,kind);
+  var nm=$('spStyleName'); if(nm){var opt=$('fStyle'); nm.textContent='（'+((opt&&opt.selectedOptions[0]&&opt.selectedOptions[0].textContent)||style)+'）';}
+  Array.prototype.forEach.call(p.querySelectorAll('.sp-tab'),function(b){b.classList.toggle('on',b.getAttribute('data-k')===kind);});
+  // 画像有無
+  var iss=(S.issuers||[]).find(function(i){return i.id===($('fIssuer')&&$('fIssuer').value);})||{};
+  var hasImg=kind==='seal'?!!iss.sealImg:!!iss.logoImg;
+  $('spNoImg').style.display=hasImg?'none':'block';
+  $('spNoImg').textContent='この宛元に'+(kind==='seal'?'角印':'ロゴ')+'画像が未登録です。上の「宛元マスタ」で画像をアップロードしてください。';
+  $('spOn').checked=!!cfg.on;
+  function setv(id,val,vid,suf){var e=$(id);if(e)e.value=val;var v=$(vid);if(v)v.textContent=(suf==='pct'?Math.round(val):val);}
+  setv('spSize',Math.round(cfg.size*1000)/10,'spSizeV'); setv('spX',Math.round(cfg.x*1000)/10,'spXV');
+  setv('spY',Math.round(cfg.y*1000)/10,'spYV'); setv('spRot',cfg.rot||0,'spRotV'); setv('spOp',Math.round((cfg.op==null?1:cfg.op)*100),'spOpV');
+}
+function stampSetKind(k){STAMP_KIND=k;syncStampPanel();}
+function stampInput(field,val){
+  var cfg=stampCfg(curStyleForStamp(),STAMP_KIND);
+  if(field==='size')cfg.size=val/100; else if(field==='x')cfg.x=val/100; else if(field==='y')cfg.y=val/100;
+  else if(field==='rot')cfg.rot=val; else if(field==='op')cfg.op=val/100; else if(field==='on')cfg.on=val;
+  preview(); syncStampPanel(); if(typeof save==='function')save();
+}
+function stampResetStyle(){var st=curStyleForStamp();if(S.stamps)delete S.stamps[st];preview();syncStampPanel();if(typeof save==='function')save();}
+function stampCopyAll(){
+  var st=curStyleForStamp(); if(!S.stamps||!S.stamps[st])return;
+  var src=JSON.parse(JSON.stringify(S.stamps[st]));
+  var styles=(typeof STYLES!=='undefined')?Object.keys(STYLES):[st];
+  styles.forEach(function(k){S.stamps[k]=JSON.parse(JSON.stringify(src));});
+  preview(); if(typeof save==='function')save();
+}
+function toggleStampPanel(){var p=$('stampPanel');if(!p)return;p.style.display=(p.style.display==='none'||!p.style.display)?'block':'none';if(p.style.display==='block')syncStampPanel();}
+(function initStampUI(){
+  function boot(){
+    if($('stampPanel'))return;
+    var st=document.createElement('style');
+    st.textContent='#stampPanel{position:fixed;right:16px;bottom:16px;width:270px;background:#fff;border:1px solid #c9d2df;border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.18);z-index:9999;font-size:12px;color:#1f2a3a;display:none}'
+     +'#stampPanel .sp-h{background:#2b3446;color:#fff;padding:8px 10px;border-radius:8px 8px 0 0;font-weight:700;display:flex;justify-content:space-between;align-items:center}'
+     +'#stampPanel .sp-h button{background:transparent;color:#fff;border:0;font-size:16px;cursor:pointer;line-height:1}'
+     +'#stampPanel .sp-b{padding:10px}'
+     +'#stampPanel .sp-tabs{display:flex;gap:6px;margin-bottom:8px}'
+     +'#stampPanel .sp-tab{flex:1;padding:5px 0;border:1px solid #c9d2df;background:#f4f6fa;border-radius:5px;cursor:pointer}'
+     +'#stampPanel .sp-tab.on{background:#2b3446;color:#fff;border-color:#2b3446}'
+     +'#stampPanel .sp-row{display:flex;align-items:center;gap:6px;margin:6px 0}'
+     +'#stampPanel .sp-row label,#stampPanel .sp-row>span:first-child{width:34px;color:#54617a}'
+     +'#stampPanel input[type=range]{flex:1}'
+     +'#stampPanel .sp-row .v{width:38px;text-align:right;color:#1f2a3a}'
+     +'#stampPanel .sp-foot{display:flex;gap:6px;margin-top:8px}'
+     +'#stampPanel .sp-foot button{flex:1;padding:6px 0;border:1px solid #c9d2df;background:#fff;border-radius:5px;cursor:pointer;font-size:11px}'
+     +'#stampPanel .sp-hint{margin-top:8px;color:#7a869c;font-size:10.5px;line-height:1.5}'
+     +'#spNoImg{background:#FDF3E2;color:#8a5a00;border:1px solid #F39C12;border-radius:5px;padding:6px 8px;margin-bottom:8px;font-size:11px;line-height:1.5}'
+     +'#stampToggleBtn{margin-top:6px;padding:6px 10px;border:1px solid #2b3446;background:#2b3446;color:#fff;border-radius:5px;cursor:pointer;font-size:12px}'
+     +'@media print{#stampPanel,#stampToggleBtn{display:none!important}}';
+    document.head.appendChild(st);
+    var p=document.createElement('div'); p.id='stampPanel';
+    p.innerHTML='<div class="sp-h"><span>角印・ロゴ配置<span id="spStyleName" style="font-weight:400;opacity:.8"></span></span><button id="spClose" title="閉じる">×</button></div>'
+     +'<div class="sp-b">'
+     +'<div class="sp-tabs"><button class="sp-tab on" data-k="seal">角印</button><button class="sp-tab" data-k="logo">社名ロゴ</button></div>'
+     +'<div id="spNoImg" style="display:none"></div>'
+     +'<label style="display:block;margin-bottom:6px"><input type="checkbox" id="spOn"> この様式に表示する</label>'
+     +'<div class="sp-row"><span>幅</span><input type="range" id="spSize" min="3" max="60" step="0.5"><span class="v"><span id="spSizeV"></span>%</span></div>'
+     +'<div class="sp-row"><span>左右</span><input type="range" id="spX" min="0" max="100" step="0.5"><span class="v"><span id="spXV"></span></span></div>'
+     +'<div class="sp-row"><span>上下</span><input type="range" id="spY" min="0" max="100" step="0.5"><span class="v"><span id="spYV"></span></span></div>'
+     +'<div class="sp-row"><span>回転</span><input type="range" id="spRot" min="-45" max="45" step="1"><span class="v"><span id="spRotV"></span>°</span></div>'
+     +'<div class="sp-row"><span>濃さ</span><input type="range" id="spOp" min="15" max="100" step="1"><span class="v"><span id="spOpV"></span>%</span></div>'
+     +'<div class="sp-foot"><button id="spReset">この様式をリセット</button><button id="spCopyAll">全様式に適用</button></div>'
+     +'<div class="sp-hint">プレビュー上で角印/ロゴを直接ドラッグしても動かせます。設定は<b>様式ごと</b>に保存され、印刷にも反映されます。画像は「宛元マスタ」で登録します。</div>'
+     +'</div>';
+    document.body.appendChild(p);
+    $('spClose').onclick=toggleStampPanel;
+    Array.prototype.forEach.call(p.querySelectorAll('.sp-tab'),function(b){b.onclick=function(){stampSetKind(b.getAttribute('data-k'));};});
+    $('spOn').onchange=function(){stampInput('on',this.checked);};
+    $('spSize').oninput=function(){stampInput('size',parseFloat(this.value));};
+    $('spX').oninput=function(){stampInput('x',parseFloat(this.value));};
+    $('spY').oninput=function(){stampInput('y',parseFloat(this.value));};
+    $('spRot').oninput=function(){stampInput('rot',parseFloat(this.value));};
+    $('spOp').oninput=function(){stampInput('op',parseFloat(this.value));};
+    $('spReset').onclick=stampResetStyle;
+    $('spCopyAll').onclick=stampCopyAll;
+    // トグルボタンをフォーマット選択の下に追加
+    var fs=$('fStyle');
+    if(fs&&fs.parentElement&&!$('stampToggleBtn')){
+      var btn=document.createElement('button'); btn.type='button'; btn.id='stampToggleBtn'; btn.textContent='🔖 角印・ロゴを配置';
+      btn.onclick=toggleStampPanel; fs.parentElement.appendChild(btn);
+    }
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot); else boot();
+})();
+
 function preview(){
   const d=currentDoc(false);
   $('preview').innerHTML=d&&d.date?renderDocHTML(d):'<div class="empty">宛元・宛名・発行日を入力してください</div>';
+  if(d&&d.date)applyStamps($('preview'),d,false);
   const iss=$('fIssuer').value;
   $('nextNoHint').textContent=iss&&$('fDate').value?'次の発行番号：'+nextNo(iss,docType,$('fDate').value,true):'';
   const cap=(STYLES[$('fStyle').value]||STYLES.a).cap;
@@ -3528,6 +3675,7 @@ function fitBizPrint(){
 function printDoc(doc){
   $('print-mount').innerHTML=renderDocHTML(doc,true);
   fitBizPrint();
+  applyStamps($('print-mount'),doc,true);
   if(['i','k'].includes(doc.style)){const sh=$('print-mount').firstElementChild;if(sh)sh.classList.add('bp-fit');}
   const isBp=['h','i','j','k'].includes(doc.style);
   const isRepro=!!$('print-mount').querySelector('.reprosheet');
