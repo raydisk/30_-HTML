@@ -1414,7 +1414,7 @@ table.dvG-sum{border-collapse:collapse;font-size:8.8pt;min-width:96mm}
 <!-- ============ フォーマット集 ============ -->
 <section class="pane" id="pane-formats">
   <h2 class="sec">請求書フォーマット集</h2>
-  <p class="hint" style="margin-bottom:10px">登録済みの宛元・取引先・商品を使った見本で、全フォーマットを一覧表示しています。「このフォーマットで作成」を押すと書類作成画面に反映されます。フォーマットは請求書・見積書・納品書・領収書のいずれにも適用できます。上部の一覧（発行履歴と同じ形式）から「このフォーマットで作成」「名称変更」「表示・非表示」「↑↓での並び替え」の操作ができ、「見本へ」で下のカードに移動します。番号は並び順に合わせて自動で振り直されます。</p>
+  <p class="hint" style="margin-bottom:10px">登録済みの宛元・取引先・商品を使った見本で、全フォーマットを一覧表示しています。「このフォーマットで作成」を押すと書類作成画面に反映されます。フォーマットは請求書・納品書・領収書のいずれにも適用できます。上部の一覧（発行履歴と同じ形式）から「このフォーマットで作成」「名称変更」「表示・非表示」「↑↓での並び替え」の操作ができ、「見本へ」で下のカードに移動します。番号は並び順に合わせて自動で振り直されます。</p>
   <div class="row" style="margin-bottom:6px">
     <label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;color:var(--ink);cursor:pointer"><input type="checkbox" id="fmtShowHidden" style="width:auto">非表示のフォーマットも表示する</label>
   </div>
@@ -1428,7 +1428,7 @@ table.dvG-sum{border-collapse:collapse;font-size:8.8pt;min-width:96mm}
   <div class="card">
     <div class="grid" style="grid-template-columns:2fr 1fr 1fr 1fr 1fr auto;align-items:end">
       <div><label>検索（発行番号・宛名・宛元・件名）</label><input id="hQ" placeholder="キーワード"></div>
-      <div><label>種別</label><select id="hType"><option value="">すべて</option><option value="invoice">請求書</option><option value="quote">見積書</option><option value="delivery">納品書</option><option value="receipt">領収書</option></select></div>
+      <div><label>種別</label><select id="hType"><option value="">すべて</option><option value="invoice">請求書</option><option value="delivery">納品書</option><option value="receipt">領収書</option></select></div>
       <div><label>入金状態</label><select id="hStatus"><option value="">すべて</option><option value="un">未入金</option><option value="part">一部入金</option><option value="paid">入金済</option><option value="overdue">期限超過</option></select></div>
       <div><label>発行月（から）</label><input type="month" id="hFrom"></div>
       <div><label>発行月（まで）</label><input type="month" id="hTo"></div>
@@ -1687,11 +1687,9 @@ function sealSVG(text){
 
 /* ================= doc types & numbering ================= */
 const DT={invoice:{label:'請求書',code:'INV',date2:'支払期限',lead:'下記の通りご請求申し上げます。',total:'ご請求金額'},
-  quote:{label:'見積書',code:'EST',date2:'有効期限',lead:'下記の通りお見積り申し上げます。',total:'御見積金額'},
   delivery:{label:'納品書',code:'DLV',date2:'納品日',lead:'下記の通り納品いたします。',total:'合計金額'},
   receipt:{label:'領収書',code:'RCT',date2:'',lead:'',total:'領収金額'}};
-const DT_EN={invoice:{title:'INVOICE',date2:'Due Date'},quote:{title:'QUOTATION',date2:'Valid Until'},
-  delivery:{title:'DELIVERY NOTE',date2:'Delivery Date'},receipt:{title:'RECEIPT',date2:''}};
+const DT_EN={invoice:{title:'INVOICE',date2:'Due Date'},  delivery:{title:'DELIVERY NOTE',date2:'Delivery Date'},receipt:{title:'RECEIPT',date2:''}};
 let docType='invoice', lines=[];
 
 function nextNo(issuerId,type,dateStr,peek){
@@ -2377,7 +2375,7 @@ var BIZSTYLES={
 var ISS={},CL={},LINES=[],C={};
 function bindDoc(doc){
   DOC=doc||{};
-  ISS=Object.assign({web:'',mail:'',bank:'',person:''},doc.issuer||{});
+  ISS=Object.assign({web:'',mail:'',bank:'',person:''},doc.issuer||{});if(!ISS.web)ISS.web=ISS.url||'';
   CL=Object.assign({person:'',hono:'御中',zip:'',addr:''},doc.client||{});
   LINES=(doc.lines||[]).map(function(L){return {name:L.name||'',model:L.model||'',jan:L.jan||'',qty:+L.qty||0,unit:L.unit||'個',price:+L.price||0,rate:+L.rate||10};});
   var c=calc(doc.lines||[]);var b10=0,x10=0,b8=0,x8=0;
@@ -2398,33 +2396,33 @@ const STYLES={
   b:{name:'スタンダード2（明細重視・型番JAN独立列）',desc:'型番・JANコードを独立した列で表示し、明細行を多く確保。卸・小売など品目数の多い取引の実務向け。',render:renderStyleB,cap:12},
   d:{name:'スタンダード3（取引伝票型・取引情報欄）',desc:'受注番号・出荷日などの取引情報欄を持つ伝票スタイル。EC・物流系の取引に。',render:renderStyleD,cap:12},
   e:{name:'スタンダード4（モダン）',desc:'紺の帯と朱のアクセントを使った現代的なデザイン。IT・クリエイティブ系の取引先や提案書に添える見積書に。',render:renderStyleE,cap:8},
-  s5:{name:'スタンダード5（標準センター）',desc:'フォーマット集（Claude作成）スタンダード5（標準センター）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('A',doc);},cap:8},
-  s6:{name:'スタンダード6（ミニマル左）',desc:'フォーマット集（Claude作成）スタンダード6（ミニマル左）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('B',doc);},cap:8},
-  s7:{name:'スタンダード7（総罫線グリッド）',desc:'フォーマット集（Claude作成）スタンダード7（総罫線グリッド）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('C',doc);},cap:8},
-  s8:{name:'スタンダード8（右上サマリー枠）',desc:'フォーマット集（Claude作成）スタンダード8（右上サマリー枠）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('D',doc);},cap:8},
-  s9:{name:'スタンダード9（ヘッダー金額バンド）',desc:'フォーマット集（Claude作成）スタンダード9（ヘッダー金額バンド）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('E',doc);},cap:8},
-  s10:{name:'スタンダード10（枠セル振込先枠）',desc:'フォーマット集（Claude作成）スタンダード10（枠セル振込先枠）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('F',doc);},cap:8},
-  s11:{name:'スタンダード11（キヤノン封書タイプ）',desc:'フォーマット集（Claude作成）スタンダード11（キヤノン封書タイプ）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('G',doc);},cap:8},
-  s12:{name:'スタンダード12（区分集計サマリー型）',desc:'フォーマット集（Claude作成）スタンダード12（区分集計サマリー型）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('H',doc);},cap:8},
-  s13:{name:'スタンダード13（英文INVOICE）',desc:'フォーマット集（Claude作成）スタンダード13（英文INVOICE）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('I',doc);},cap:8},
-  s14:{name:'スタンダード14（横向き明細票）',desc:'フォーマット集（Claude作成）スタンダード14（横向き明細票）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('J',doc);},cap:8},
-  s15:{name:'スタンダード15（全ボックス型）',desc:'フォーマット集（Claude作成）スタンダード15（全ボックス型）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('K',doc);},cap:8},
-  s16:{name:'スタンダード16（挨拶文検印欄型）',desc:'フォーマット集（Claude作成）スタンダード16（挨拶文検印欄型）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('L',doc);},cap:8},
-  s17:{name:'スタンダード17（弥生風下部案内型）',desc:'フォーマット集（Claude作成）スタンダード17（弥生風下部案内型）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('M',doc);},cap:8},
-  s18:{name:'スタンダード18（御請求書罫線型）',desc:'フォーマット集（Claude作成）スタンダード18（御請求書罫線型）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('N',doc);},cap:8},
-  s19:{name:'スタンダード19（リボン源泉徴収型）',desc:'フォーマット集（Claude作成）スタンダード19（リボン源泉徴収型）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('O',doc);},cap:8},
-  s20:{name:'スタンダード20（帯個人事業主型）',desc:'フォーマット集（Claude作成）スタンダード20（帯個人事業主型）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('P',doc);},cap:8},
-  s21:{name:'スタンダード21（案件グループ小計型）',desc:'フォーマット集（Claude作成）スタンダード21（案件グループ小計型）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('Q',doc);},cap:8},
-  s22:{name:'スタンダード22（大ロゴ内訳3段型）',desc:'フォーマット集（Claude作成）スタンダード22（大ロゴ内訳3段型）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('R',doc);},cap:8},
-  s23:{name:'スタンダード23（日付品名内訳セル型）',desc:'フォーマット集（Claude作成）スタンダード23（日付品名内訳セル型）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('S',doc);},cap:8},
-  s24:{name:'スタンダード24（件名ボックスグレー型）',desc:'フォーマット集（Claude作成）スタンダード24（件名ボックスグレー型）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('T',doc);},cap:8},
-  s25:{name:'スタンダード25（値引き複数振込先型）',desc:'フォーマット集（Claude作成）スタンダード25（値引き複数振込先型）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('U',doc);},cap:8},
-  s26:{name:'スタンダード26（ロゴスペース下線型）',desc:'フォーマット集（Claude作成）スタンダード26（ロゴスペース下線型）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('V',doc);},cap:8},
-  s27:{name:'スタンダード27（サイドインデックス型）',desc:'フォーマット集（Claude作成）スタンダード27（サイドインデックス型）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('W',doc);},cap:8},
-  s28:{name:'スタンダード28（メタグリッド帳票型）',desc:'フォーマット集（Claude作成）スタンダード28（メタグリッド帳票型）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('X',doc);},cap:8},
-  s29:{name:'スタンダード29（レターヘッド文書型）',desc:'フォーマット集（Claude作成）スタンダード29（レターヘッド文書型）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('Y',doc);},cap:8},
-  s30:{name:'スタンダード30（二部構成切取明細票型）',desc:'フォーマット集（Claude作成）スタンダード30（二部構成切取明細票型）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('Z',doc);},cap:8},
-  s31:{name:'スタンダード31（グレー帯全項目型）',desc:'フォーマット集（Claude作成）スタンダード31（グレー帯全項目型）。請求書・納品書・領収書に対応（見積書はスタンダード1〜4を推奨）。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('AA',doc);},cap:8}
+  s5:{name:'スタンダード5（標準センター）',desc:'フォーマット集（Claude作成）スタンダード5（標準センター）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('A',doc);},cap:8},
+  s6:{name:'スタンダード6（ミニマル左）',desc:'フォーマット集（Claude作成）スタンダード6（ミニマル左）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('B',doc);},cap:8},
+  s7:{name:'スタンダード7（総罫線グリッド）',desc:'フォーマット集（Claude作成）スタンダード7（総罫線グリッド）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('C',doc);},cap:8},
+  s8:{name:'スタンダード8（右上サマリー枠）',desc:'フォーマット集（Claude作成）スタンダード8（右上サマリー枠）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('D',doc);},cap:8},
+  s9:{name:'スタンダード9（ヘッダー金額バンド）',desc:'フォーマット集（Claude作成）スタンダード9（ヘッダー金額バンド）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('E',doc);},cap:8},
+  s10:{name:'スタンダード10（枠セル振込先枠）',desc:'フォーマット集（Claude作成）スタンダード10（枠セル振込先枠）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('F',doc);},cap:8},
+  s11:{name:'スタンダード11（キヤノン封書タイプ）',desc:'フォーマット集（Claude作成）スタンダード11（キヤノン封書タイプ）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('G',doc);},cap:8},
+  s12:{name:'スタンダード12（区分集計サマリー型）',desc:'フォーマット集（Claude作成）スタンダード12（区分集計サマリー型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('H',doc);},cap:8},
+  s13:{name:'スタンダード13（英文INVOICE）',desc:'フォーマット集（Claude作成）スタンダード13（英文INVOICE）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('I',doc);},cap:8},
+  s14:{name:'スタンダード14（横向き明細票）',desc:'フォーマット集（Claude作成）スタンダード14（横向き明細票）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('J',doc);},cap:8},
+  s15:{name:'スタンダード15（全ボックス型）',desc:'フォーマット集（Claude作成）スタンダード15（全ボックス型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('K',doc);},cap:8},
+  s16:{name:'スタンダード16（挨拶文検印欄型）',desc:'フォーマット集（Claude作成）スタンダード16（挨拶文検印欄型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('L',doc);},cap:8},
+  s17:{name:'スタンダード17（弥生風下部案内型）',desc:'フォーマット集（Claude作成）スタンダード17（弥生風下部案内型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('M',doc);},cap:8},
+  s18:{name:'スタンダード18（御請求書罫線型）',desc:'フォーマット集（Claude作成）スタンダード18（御請求書罫線型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('N',doc);},cap:8},
+  s19:{name:'スタンダード19（リボン源泉徴収型）',desc:'フォーマット集（Claude作成）スタンダード19（リボン源泉徴収型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('O',doc);},cap:8},
+  s20:{name:'スタンダード20（帯個人事業主型）',desc:'フォーマット集（Claude作成）スタンダード20（帯個人事業主型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('P',doc);},cap:8},
+  s21:{name:'スタンダード21（案件グループ小計型）',desc:'フォーマット集（Claude作成）スタンダード21（案件グループ小計型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('Q',doc);},cap:8},
+  s22:{name:'スタンダード22（大ロゴ内訳3段型）',desc:'フォーマット集（Claude作成）スタンダード22（大ロゴ内訳3段型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('R',doc);},cap:8},
+  s23:{name:'スタンダード23（日付品名内訳セル型）',desc:'フォーマット集（Claude作成）スタンダード23（日付品名内訳セル型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('S',doc);},cap:8},
+  s24:{name:'スタンダード24（件名ボックスグレー型）',desc:'フォーマット集（Claude作成）スタンダード24（件名ボックスグレー型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('T',doc);},cap:8},
+  s25:{name:'スタンダード25（値引き複数振込先型）',desc:'フォーマット集（Claude作成）スタンダード25（値引き複数振込先型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('U',doc);},cap:8},
+  s26:{name:'スタンダード26（ロゴスペース下線型）',desc:'フォーマット集（Claude作成）スタンダード26（ロゴスペース下線型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('V',doc);},cap:8},
+  s27:{name:'スタンダード27（サイドインデックス型）',desc:'フォーマット集（Claude作成）スタンダード27（サイドインデックス型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('W',doc);},cap:8},
+  s28:{name:'スタンダード28（メタグリッド帳票型）',desc:'フォーマット集（Claude作成）スタンダード28（メタグリッド帳票型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('X',doc);},cap:8},
+  s29:{name:'スタンダード29（レターヘッド文書型）',desc:'フォーマット集（Claude作成）スタンダード29（レターヘッド文書型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('Y',doc);},cap:8},
+  s30:{name:'スタンダード30（二部構成切取明細票型）',desc:'フォーマット集（Claude作成）スタンダード30（二部構成切取明細票型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('Z',doc);},cap:8},
+  s31:{name:'スタンダード31（グレー帯全項目型）',desc:'フォーマット集（Claude作成）スタンダード31（グレー帯全項目型）。請求書・納品書・領収書に対応。取引日・型番/JAN・税率区分・登録番号・TEL/MAIL/WEB記載のインボイス対応。',render:function(doc){return bizRender('AA',doc);},cap:8}
 ,
 };
 /* 履歴には画像を持たせない（容量対策）ため、描画時にマスタからIDで画像を解決する */
@@ -2440,7 +2438,7 @@ function renderDocHTML(doc,forPrint){
 function buildInfoRows(doc,iss,dt){
   const isRc=doc.type==='receipt',isInv=doc.type==='invoice';
   if(isRc)return `<tr><td class="l">但し書き</td><td>${esc(doc.tadashi||'お品代として')}</td></tr>`
-    +`<tr><td class="l">印　紙</td><td>電子発行のため収入印紙は不要です（印紙税非課税）</td></tr>`;
+    ;
   return [doc.subject?`<tr><td class="l">件　名</td><td>${esc(doc.subject)}</td></tr>`:'',
     dt.date2&&doc.date2?`<tr><td class="l">${dt.date2}</td><td>${jd(doc.date2)}</td></tr>`:'',
     isInv&&iss.bank?`<tr><td class="l">お振込先</td><td>${esc(iss.bank)}</td></tr>`:''].join('');
@@ -2505,10 +2503,10 @@ function renderStyleA(doc){
         ${iss.tel?`<div>TEL：${esc(iss.tel)}</div>`:''}
         ${iss.fax?`<div>FAX：${esc(iss.fax)}</div>`:''}
         ${iss.mail?`<div>MAIL：${esc(iss.mail)}</div>`:''}
-        ${iss.url?`<div>URL：${esc(iss.url)}</div>`:''}
+        ${iss.url?`<div>WEB：${esc(iss.url)}</div>`:''}
         ${iss.person?`<div>担当：${esc(iss.person)}</div>`:''}
         ${iss.inv?`<div class="reg">適格請求書発行事業者　登録番号：${esc(iss.inv)}</div>`:''}
-        <div class="dv-seal"><img src="${seal}" alt="印"></div>
+        <div class="dv-seal"></div>
       </div>
     </div>
     <table class="dv-tbl">
@@ -2569,10 +2567,10 @@ function renderStyleB(doc){
         ${iss.tel?`<div>TEL：${esc(iss.tel)}</div>`:''}
         ${iss.fax?`<div>FAX：${esc(iss.fax)}</div>`:''}
         ${iss.mail?`<div>MAIL：${esc(iss.mail)}</div>`:''}
-        ${iss.url?`<div>URL：${esc(iss.url)}</div>`:''}
+        ${iss.url?`<div>WEB：${esc(iss.url)}</div>`:''}
         ${iss.person?`<div>担当：${esc(iss.person)}</div>`:''}
         ${iss.inv?`<div class="reg">適格請求書発行事業者　登録番号：${esc(iss.inv)}</div>`:''}
-        <div class="dv-seal"><img src="${seal}" alt="印"></div>
+        <div class="dv-seal"></div>
       </div>
     </div>
     <table class="db-tbl">
@@ -2625,9 +2623,9 @@ function renderStyleC(doc){
         <div>${esc([iss.zip,iss.addr].filter(Boolean).join('　'))}</div>
         ${iss.tel?`<div>TEL：${esc(iss.tel)}</div>`:''}
         ${iss.fax?`<div>FAX：${esc(iss.fax)}</div>`:''}
-        ${iss.url?`<div>URL：${esc(iss.url)}</div>`:''}
+        ${iss.url?`<div>WEB：${esc(iss.url)}</div>`:''}
         ${iss.inv?`<div class="reg">登録番号：${esc(iss.inv)}</div>`:''}
-        <div class="dv-seal" style="top:9mm"><img src="${seal}" alt="印"></div>
+        <div class="dv-seal" style="top:9mm"></div>
       </div>
     </div>
     <table class="dv-tbl" style="margin-top:5mm">
@@ -2693,9 +2691,9 @@ function renderStyleD(doc){
         ${iss.tel?`<div>TEL：${esc(iss.tel)}</div>`:''}
         ${iss.fax?`<div>FAX：${esc(iss.fax)}</div>`:''}
         ${iss.mail?`<div>MAIL：${esc(iss.mail)}</div>`:''}
-        ${iss.url?`<div>URL：${esc(iss.url)}</div>`:''}
+        ${iss.url?`<div>WEB：${esc(iss.url)}</div>`:''}
         ${iss.inv?`<div class="reg">適格請求書発行事業者　登録番号：${esc(iss.inv)}</div>`:''}
-        <div class="dv-seal"><img src="${seal}" alt="印"></div>
+        <div class="dv-seal"></div>
       </div>
     </div>
     ${trows?`<table class="dv-info" style="margin-top:4mm;width:100%">${trows}</table>`:''}
@@ -2759,10 +2757,10 @@ function renderStyleE(doc){
         ${iss.tel?`<div>TEL：${esc(iss.tel)}</div>`:''}
         ${iss.fax?`<div>FAX：${esc(iss.fax)}</div>`:''}
         ${iss.mail?`<div>MAIL：${esc(iss.mail)}</div>`:''}
-        ${iss.url?`<div>URL：${esc(iss.url)}</div>`:''}
+        ${iss.url?`<div>WEB：${esc(iss.url)}</div>`:''}
         ${iss.person?`<div>担当：${esc(iss.person)}</div>`:''}
         ${iss.inv?`<div class="reg">適格請求書発行事業者　登録番号：${esc(iss.inv)}</div>`:''}
-        <div class="dv-seal"><img src="${seal}" alt="印"></div>
+        <div class="dv-seal"></div>
       </div>
     </div>
     <table class="dvE-tbl">
@@ -2905,9 +2903,9 @@ function renderStyleG(doc){
         ${iss.tel?`<div>TEL：${esc(iss.tel)}</div>`:''}
         ${iss.fax?`<div>FAX：${esc(iss.fax)}</div>`:''}
         ${iss.mail?`<div>MAIL：${esc(iss.mail)}</div>`:''}
-        ${iss.url?`<div>URL：${esc(iss.url)}</div>`:''}
+        ${iss.url?`<div>WEB：${esc(iss.url)}</div>`:''}
         ${iss.person?`<div>担当：${esc(iss.person)}</div>`:''}
-        <div class="dv-seal" style="top:13mm"><img src="${seal}" alt="印"></div>
+        <div class="dv-seal" style="top:13mm"></div>
       </div>
     </div>
     <div style="display:flex;justify-content:space-between;gap:8mm;margin-top:4mm;align-items:flex-start">
@@ -3391,7 +3389,7 @@ function renderHistory(){
         <option value="part"${raw==='part'?' selected':''}>一部入金</option>
         <option value="paid"${raw==='paid'?' selected':''}>入金済</option></select>`;
     }
-    h+=`<tr><td>${ix+1}</td><td><b>${esc(d.no)}</b></td><td>${DT[d.type].label}</td><td>${jd(d.date)}${d.createdAt?` <span class=\"hint\">${new Date(d.createdAt).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}</span>`:''}</td><td>${esc(d.client.name)}</td><td>${esc(d.issuer.name)}</td><td style="text-align:right">${yen(c.total)}</td><td>${st}</td>
+    h+=`<tr><td>${ix+1}</td><td><b>${esc(d.no)}</b></td><td>${(DT[d.type]||{label:d.type}).label}</td><td>${jd(d.date)}${d.createdAt?` <span class=\"hint\">${new Date(d.createdAt).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}</span>`:''}</td><td>${esc(d.client.name)}</td><td>${esc(d.issuer.name)}</td><td style="text-align:right">${yen(c.total)}</td><td>${st}</td>
     <td style="white-space:nowrap"><button class="btn sm" data-re="${d.id}">再発行</button> <button class="btn sm" data-dup="${d.id}">複製</button> <button class="btn sm danger" data-hdel="${d.id}">削除</button>${payCtl}</td></tr>`;
   });
   box.innerHTML=h+'</table>';
@@ -3455,7 +3453,7 @@ $('hCsv').onclick=()=>{
     const c=calc(d.lines);
     const raw=d.type!=='invoice'?'－':(d.pay&&d.pay.st)||(d.paid?'paid':'un');
     const stLabel=raw==='－'?'－':raw==='paid'?'入金済':raw==='part'?'一部入金':docPayState(d,today).startsWith('overdue')?'期限超過':'未入金';
-    rows.push([d.no,DT[d.type].label,d.date,d.date2||'',d.client.name,d.issuer.name,d.subject||'',c.sub,c.tax,c.total,stLabel,(d.pay&&d.pay.date)||'',d.type==='invoice'?((d.pay&&d.pay.st==='paid')?c.total:(d.pay&&d.pay.amount)||0):''].map(cell).join(','));
+    rows.push([d.no,(DT[d.type]||{label:d.type}).label,d.date,d.date2||'',d.client.name,d.issuer.name,d.subject||'',c.sub,c.tax,c.total,stLabel,(d.pay&&d.pay.date)||'',d.type==='invoice'?((d.pay&&d.pay.st==='paid')?c.total:(d.pay&&d.pay.amount)||0):''].map(cell).join(','));
   });
   const blob=new Blob(['\uFEFF'+rows.join('\r\n')],{type:'text/csv'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
