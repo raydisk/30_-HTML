@@ -4634,7 +4634,8 @@ var lastSig='';           // 直近保存した内容の署名
 var busy=false, loading=false, saveTimer=null, fsHandle=null, lastInv=null;
 
 /* ---- App key / token 保管 ---- */
-function getKey(){ return localStorage.getItem('cloud_dbx_appkey')||''; }
+var DBX_DEFAULT_KEY='dy6n00hokgdvf5j'; /* このアプリ用のDropbox App key（公開可＝client_id。secretではない） */
+function getKey(){ return localStorage.getItem('cloud_dbx_appkey')||DBX_DEFAULT_KEY; }
 function setKey(v){ localStorage.setItem('cloud_dbx_appkey', v||''); }
 function getTok(){ try{ return JSON.parse(localStorage.getItem('cloud_dbx_tok')||'null'); }catch(e){ return null; } }
 function setTok(v){ if(v) localStorage.setItem('cloud_dbx_tok', JSON.stringify(v)); else localStorage.removeItem('cloud_dbx_tok'); }
