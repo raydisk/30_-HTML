@@ -3569,7 +3569,7 @@ function toggleStampPanel(){var p=$('stampPanel');if(!p)return;p.style.display=(
     if($('stampPanel'))return;
     var st=document.createElement('style');
     st.textContent='#stampPanel{position:fixed;right:16px;bottom:16px;width:270px;background:#fff;border:1px solid #c9d2df;border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.18);z-index:9999;font-size:12px;color:#1f2a3a;display:none}'
-     +'#stampPanel .sp-h{background:#2b3446;color:#fff;padding:8px 10px;border-radius:8px 8px 0 0;font-weight:700;display:flex;justify-content:space-between;align-items:center}'
+     +'#stampPanel .sp-h{background:#2b3446;color:#fff;padding:8px 10px;border-radius:8px 8px 0 0;font-weight:700;display:flex;justify-content:space-between;align-items:center;cursor:move;touch-action:none;user-select:none}'
      +'#stampPanel .sp-h button{background:transparent;color:#fff;border:0;font-size:16px;cursor:pointer;line-height:1}'
      +'#stampPanel .sp-b{padding:10px}'
      +'#stampPanel .sp-tabs{display:flex;gap:6px;margin-bottom:8px}'
@@ -3598,7 +3598,7 @@ function toggleStampPanel(){var p=$('stampPanel');if(!p)return;p.style.display=(
      +'<div class="sp-row"><span>回転</span><input type="range" id="spRot" min="-45" max="45" step="1"><span class="v"><span id="spRotV"></span>°</span></div>'
      +'<div class="sp-row"><span>濃さ</span><input type="range" id="spOp" min="15" max="100" step="1"><span class="v"><span id="spOpV"></span>%</span></div>'
      +'<div class="sp-foot"><button id="spReset">この様式をリセット</button><button id="spCopyAll">全様式に適用</button></div>'
-     +'<div class="sp-hint">プレビュー上で角印/ロゴを直接ドラッグしても動かせます。設定は<b>様式ごと</b>に保存され、印刷にも反映されます。画像は「宛元マスタ」で登録します。</div>'
+     +'<div class="sp-hint">このパネルは<b>上部の見出し（濃紺帯）をドラッグ</b>して好きな位置に動かせます。プレビュー上で角印/ロゴを直接ドラッグしても動かせます。設定は<b>様式ごと</b>に保存され、印刷にも反映されます。画像は「宛元マスタ」で登録します。</div>'
      +'</div>';
     document.body.appendChild(p);
     $('spClose').onclick=toggleStampPanel;
@@ -3611,6 +3611,31 @@ function toggleStampPanel(){var p=$('stampPanel');if(!p)return;p.style.display=(
     $('spOp').oninput=function(){stampInput('op',parseFloat(this.value));};
     $('spReset').onclick=stampResetStyle;
     $('spCopyAll').onclick=stampCopyAll;
+    // パネルを見出しドラッグで自由に移動
+    (function(){
+      var head=p.querySelector('.sp-h'); if(!head)return;
+      var dragging=false,dx=0,dy=0;
+      head.addEventListener('pointerdown',function(e){
+        if(e.target.closest('#spClose'))return;
+        var r=p.getBoundingClientRect();
+        // right/bottom 基準から left/top 基準へ切替（掴んだ瞬間の位置を維持）
+        p.style.left=r.left+'px'; p.style.top=r.top+'px'; p.style.right='auto'; p.style.bottom='auto';
+        dx=e.clientX-r.left; dy=e.clientY-r.top; dragging=true;
+        try{head.setPointerCapture(e.pointerId);}catch(_){}
+        e.preventDefault();
+      });
+      head.addEventListener('pointermove',function(e){
+        if(!dragging)return;
+        var w=p.offsetWidth,h=p.offsetHeight;
+        var nx=e.clientX-dx, ny=e.clientY-dy;
+        nx=Math.max(4,Math.min(nx,window.innerWidth-w-4));
+        ny=Math.max(4,Math.min(ny,window.innerHeight-h-4));
+        p.style.left=nx+'px'; p.style.top=ny+'px';
+      });
+      function endDrag(e){ if(!dragging)return; dragging=false; try{head.releasePointerCapture(e.pointerId);}catch(_){} }
+      head.addEventListener('pointerup',endDrag);
+      head.addEventListener('pointercancel',endDrag);
+    })();
     // トグルボタンをフォーマット選択の下に追加
     var fs=$('fStyle');
     if(fs&&fs.parentElement&&!$('stampToggleBtn')){
