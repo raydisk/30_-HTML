@@ -91,6 +91,20 @@ table.list tr:hover td{background:#FAFBFD}
 .modal{display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.5);align-items:center;justify-content:center}
 .modal.on{display:flex}
 .modal-content{background:#fff;border-radius:8px;width:90%;max-width:900px;max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 4px 20px rgba(0,0,0,0.2)}
+#cloudModal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10001;display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:28px 12px}
+#cloudModal.on{display:flex}
+#cloudModal .cm{background:#F4F6FA;border-radius:10px;max-width:720px;width:100%;box-shadow:0 12px 44px rgba(0,0,0,.3)}
+#cloudModal .cm-h{display:flex;justify-content:space-between;align-items:center;background:var(--indigo);color:#fff;padding:12px 16px;border-radius:10px 10px 0 0;font-weight:700}
+#cloudModal .cm-b{padding:16px}
+#cloudModal .cbox{border:1px solid var(--line);border-radius:8px;background:#fff;padding:14px;margin-bottom:14px}
+#cloudModal .cbox h4{margin:0 0 4px;font-size:14px}
+#cloudModal .cbox .sub{font-size:11.5px;color:var(--muted);line-height:1.6;margin-bottom:10px}
+#cloudModal .crow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+#cloudModal input[type=text]{padding:6px 8px;border:1px solid var(--line);border-radius:5px;font-size:12px}
+#cloudModal .cstat{font-size:11.5px;color:#1f7a4d;margin-top:8px;font-weight:600}
+#cloudModal .rec{display:inline-block;background:#EAF3EE;color:#1f7a4d;border:1px solid #bfe0cd;border-radius:4px;padding:1px 7px;font-size:10.5px;font-weight:700;margin-left:6px}
+#cloudModal ol{margin:6px 0 0 18px;padding:0;font-size:11.5px;color:var(--muted);line-height:1.7}
+#cloudModal a{color:var(--indigo)}
 
 @media print{
   body{background:#fff}
@@ -109,6 +123,7 @@ table.list tr:hover td{background:#FAFBFD}
   </span>
   <span class="save-note" id="saveNote">データ保存: ローカル</span>
   <span style="display:flex;gap:6px">
+    <button class="topbtn" onclick="openCloudModal()" type="button" title="Dropboxと同期（フォルダ自動同期／App key直結の両対応）">☁ クラウド同期</button>
     <button class="topbtn" onclick="openImportHub()" type="button" title="各シートの取込フォーマット(列見出し)と空テンプレDL・取込をまとめて表示">取込フォーマット</button>
     <button class="topbtn" onclick="exportData()" type="button">データ書出</button>
     <button class="topbtn" onclick="importDataTrigger()" type="button">データ読込</button>
@@ -4563,7 +4578,9 @@ window.__invBridge = {
   renderClients: function(){ renderClients(); },
   renderLines: function(){ renderLines(); },
   preview: function(){ if(typeof preview==='function') preview(); },
-  save: function(){ if(typeof save==='function') save(); }
+  save: function(){ if(typeof save==='function') save(); },
+  getFullData: function(){ return S; },
+  applyFullData: function(d){ if(d==null) return; S=d; if(typeof migrate==='function')migrate(); if(typeof save==='function')save(); if(typeof invRenderAll==='function')invRenderAll(); }
 };
 /* 書類作成タブ: 現在の請求書データを Excel(xlsx) で書き出す */
 function __invExportXlsx(){
@@ -4606,6 +4623,262 @@ function invBridge(){ var f=document.getElementById('invEmbed'); return f && f.c
 function whenInvReady(cb, tries){ tries=(tries==null)?60:tries; var b=invBridge(); if(b&&b.ready){cb(b);return;} if(tries<=0)return; setTimeout(function(){whenInvReady(cb,tries-1);},100); }
 function invReady(cb, tries){ tries=(tries==null)?60:tries; var b=invBridge(); if(b&&b.ready){cb(b);return;} if(tries<=0){alert('請求書発行の読み込み中です。タブ「5. 請求書発行」を一度開いてから再度お試しください。');return;} setTimeout(function(){invReady(cb,tries-1);},100); }
 function gotoInvoiceTab(){ var t=document.querySelector('.tab[data-pane="invoice"]'); if(t) t.click(); }
+
+/* ================= クラウド同期（両方入り: A=フォルダ / B=Dropbox直結） ================= */
+(function(){
+'use strict';
+var $$=function(id){return document.getElementById(id);};
+var DBX_PATH='/統合管理データ.json';
+var conn=null;            // null | 'fs' | 'dbx'
+var lastSig='';           // 直近保存した内容の署名
+var busy=false, loading=false, saveTimer=null, fsHandle=null, lastInv=null;
+
+/* ---- App key / token 保管 ---- */
+function getKey(){ return localStorage.getItem('cloud_dbx_appkey')||''; }
+function setKey(v){ localStorage.setItem('cloud_dbx_appkey', v||''); }
+function getTok(){ try{ return JSON.parse(localStorage.getItem('cloud_dbx_tok')||'null'); }catch(e){ return null; } }
+function setTok(v){ if(v) localStorage.setItem('cloud_dbx_tok', JSON.stringify(v)); else localStorage.removeItem('cloud_dbx_tok'); }
+
+/* ---- 全体パックの生成/適用（親DB + 請求書S） ---- */
+function invB(){ try{ return invBridge(); }catch(e){ return null; } }
+function buildPack(){
+  var inv=null, b=invB();
+  if(b && b.getFullData){ try{ inv=b.getFullData(); }catch(e){} }
+  if(inv==null) inv=lastInv; else lastInv=inv;
+  return {app:'shingan-suite', kind:'full', ver:2, savedAt:new Date().toISOString(), parent:DB, invoice:inv};
+}
+function packSig(p){ p=p||buildPack(); return JSON.stringify(p.parent)+'|'+JSON.stringify(p.invoice); }
+function applyPack(obj){
+  if(!obj||typeof obj!=='object') return false;
+  loading=true;
+  try{
+    if(obj.parent){ DB=obj.parent; if(typeof persist==='function')persist(); if(typeof renderDashboard==='function')renderDashboard(); if(typeof renderHistoryLog==='function')renderHistoryLog(); }
+    if(obj.invoice!==undefined){ lastInv=obj.invoice; var b=invB(); if(b&&b.applyFullData) b.applyFullData(obj.invoice); }
+    lastSig=packSig({parent:(obj.parent||DB), invoice:(obj.invoice!==undefined?obj.invoice:lastInv)});
+  } finally { setTimeout(function(){loading=false;},300); }
+  return true;
+}
+
+/* ---- 状態表示 ---- */
+function ts(){ return new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}); }
+function setStat(msg, ok){
+  var s=$$('cloudStat'); if(s){ s.textContent=msg||''; s.style.color= ok===false?'#b23':'#1f7a4d'; }
+  var note=$$('saveNote');
+  if(note){ note.textContent = conn==='dbx'?('☁ Dropbox同期 '+ts()) : conn==='fs'?('☁ フォルダ同期 '+ts()) : 'データ保存: ローカル'; }
+}
+function setConn(c){ conn=c; lastSig=packSig(); setStat(c==='dbx'?'Dropboxと同期中':c==='fs'?'フォルダと同期中':'', true); refreshModal(); }
+
+/* ---- 自動保存（ポーリングで親DB/請求書の変更を検知） ---- */
+function scheduleSave(){ if(saveTimer)clearTimeout(saveTimer); saveTimer=setTimeout(saveNow,1400); }
+function tick(){
+  if(!conn||busy||loading) return;
+  try{ if(packSig()!==lastSig) scheduleSave(); }catch(e){}
+}
+setInterval(tick, 4000);
+window.addEventListener('beforeunload', function(){ if(conn && packSig()!==lastSig){ try{ saveNow(true); }catch(e){} } });
+
+async function saveNow(sync){
+  if(!conn||busy) return; busy=true;
+  var p=buildPack(); var text=JSON.stringify(p,null,2); var sig=packSig(p);
+  try{
+    if(conn==='fs') await fsWrite(text);
+    else if(conn==='dbx') await dbxUpload(text);
+    lastSig=sig; setStat('保存しました '+ts(), true);
+  }catch(e){ setStat('保存に失敗: '+(e.message||e), false); }
+  finally{ busy=false; }
+}
+async function loadNow(){
+  if(!conn) return;
+  try{
+    var text = conn==='fs'? await fsRead() : await dbxDownload();
+    if(text==null){ setStat('クラウドにデータがまだありません（この端末の内容を保存します）', true); await saveNow(); return; }
+    var obj=JSON.parse(text);
+    if(applyPack(obj)) setStat('クラウドから読み込みました '+ts(), true);
+  }catch(e){ setStat('読込に失敗: '+(e.message||e), false); }
+}
+
+/* ================= A) File System Access ================= */
+function fsSupported(){ return !!(window.showSaveFilePicker && window.showOpenFilePicker); }
+function idb(){ return new Promise(function(res,rej){ var q=indexedDB.open('cloudsync',1); q.onupgradeneeded=function(){ q.result.createObjectStore('h'); }; q.onsuccess=function(){res(q.result);}; q.onerror=function(){rej(q.error);}; }); }
+async function fsSaveHandle(hd){ try{ var db=await idb(); db.transaction('h','readwrite').objectStore('h').put(hd,'file'); }catch(e){} }
+async function fsLoadHandle(){ try{ var db=await idb(); return await new Promise(function(res){ var g=db.transaction('h','readonly').objectStore('h').get('file'); g.onsuccess=function(){res(g.result||null);}; g.onerror=function(){res(null);}; }); }catch(e){ return null; } }
+async function fsWrite(text){ if(!fsHandle) throw new Error('未接続'); var w=await fsHandle.createWritable(); await w.write(text); await w.close(); }
+async function fsRead(){ if(!fsHandle) throw new Error('未接続'); var f=await fsHandle.getFile(); return await f.text(); }
+async function fsConnect(mode){
+  if(!fsSupported()){ alert('この方式（フォルダ自動同期）はChrome/Edgeでご利用ください。'); return; }
+  try{
+    if(mode==='open'){ var hs=await window.showOpenFilePicker({types:[{description:'統合管理データ',accept:{'application/json':['.json']}}]}); fsHandle=hs[0]; }
+    else { fsHandle=await window.showSaveFilePicker({suggestedName:'統合管理データ.json',types:[{description:'統合管理データ',accept:{'application/json':['.json']}}]}); }
+    await fsSaveHandle(fsHandle);
+    setConn('fs');
+    if(mode==='open') await loadNow(); else await saveNow();
+  }catch(e){ if(e&&e.name!=='AbortError') alert('接続に失敗しました: '+(e.message||e)); }
+}
+async function fsReconnect(){
+  if(!fsHandle){ fsConnect('open'); return; }
+  try{
+    var perm=await fsHandle.queryPermission({mode:'readwrite'});
+    if(perm!=='granted') perm=await fsHandle.requestPermission({mode:'readwrite'});
+    if(perm!=='granted'){ setStat('フォルダへのアクセスが許可されませんでした', false); return; }
+    setConn('fs'); await loadNow();
+  }catch(e){ setStat('再接続に失敗: '+(e.message||e), false); }
+}
+
+/* ================= B) Dropbox 直結（OAuth PKCE / コード貼付方式） ================= */
+function b64url(buf){ var s=btoa(String.fromCharCode.apply(null,new Uint8Array(buf))); return s.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+async function pkce(){
+  var raw=crypto.getRandomValues(new Uint8Array(64)); var verifier=b64url(raw);
+  if(crypto.subtle){ var d=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)); return {verifier:verifier, challenge:b64url(d), method:'S256'}; }
+  return {verifier:verifier, challenge:verifier, method:'plain'};
+}
+async function dbxAuthStart(){
+  var key=(($$('cloudDbxKey')||{}).value||'').trim(); if(!key){ alert('DropboxのApp keyを入力してください。'); return; }
+  setKey(key);
+  var p=await pkce(); sessionStorage.setItem('dbx_verifier', p.verifier);
+  var url='https://www.dropbox.com/oauth2/authorize?client_id='+encodeURIComponent(key)
+    +'&response_type=code&code_challenge='+encodeURIComponent(p.challenge)
+    +'&code_challenge_method='+p.method+'&token_access_type=offline';
+  window.open(url,'_blank','noopener');
+  var row=$$('cloudDbxCodeRow'); if(row) row.style.display='block';
+  setStat('Dropboxの画面で許可し、表示されたコードを下欄に貼り付けてください', true);
+}
+async function dbxAuthFinish(){
+  var code=(($$('cloudDbxCode')||{}).value||'').trim(); if(!code){ alert('Dropboxに表示されたコードを貼り付けてください。'); return; }
+  var verifier=sessionStorage.getItem('dbx_verifier')||'';
+  try{
+    var body=new URLSearchParams({code:code,grant_type:'authorization_code',client_id:getKey(),code_verifier:verifier});
+    var r=await fetch('https://api.dropboxapi.com/oauth2/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body.toString()});
+    if(!r.ok){ setStat('トークン取得に失敗: '+r.status, false); alert('接続に失敗しました（コードが正しいかご確認ください）。'); return; }
+    var t=await r.json(); t.obtained=Date.now(); setTok(t);
+    var codeEl=$$('cloudDbxCode'); if(codeEl) codeEl.value='';
+    setConn('dbx');
+    await dbxInitialSync();
+  }catch(e){ setStat('接続エラー: '+(e.message||e), false); }
+}
+async function dbxAccessToken(){
+  var t=getTok(); if(!t) throw new Error('未接続');
+  var age=(Date.now()-(t.obtained||0))/1000;
+  if(t.access_token && age < ((t.expires_in||14400)-120)) return t.access_token;
+  if(t.refresh_token){
+    var body=new URLSearchParams({grant_type:'refresh_token',refresh_token:t.refresh_token,client_id:getKey()});
+    var r=await fetch('https://api.dropboxapi.com/oauth2/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body.toString()});
+    if(r.ok){ var n=await r.json(); t.access_token=n.access_token; t.expires_in=n.expires_in; t.obtained=Date.now(); setTok(t); return t.access_token; }
+  }
+  return t.access_token;
+}
+async function dbxUpload(text){
+  var tok=await dbxAccessToken();
+  var r=await fetch('https://content.dropboxapi.com/2/files/upload',{method:'POST',headers:{'Authorization':'Bearer '+tok,'Dropbox-API-Arg':JSON.stringify({path:DBX_PATH,mode:'overwrite',mute:true}),'Content-Type':'application/octet-stream'},body:text});
+  if(!r.ok) throw new Error('upload '+r.status);
+}
+async function dbxDownload(){
+  var tok=await dbxAccessToken();
+  var r=await fetch('https://content.dropboxapi.com/2/files/download',{method:'POST',headers:{'Authorization':'Bearer '+tok,'Dropbox-API-Arg':JSON.stringify({path:DBX_PATH})}});
+  if(r.status===409) return null;
+  if(!r.ok) throw new Error('download '+r.status);
+  return await r.text();
+}
+async function dbxInitialSync(){
+  try{
+    var text=await dbxDownload();
+    if(text==null){ await saveNow(); setStat('接続しました。この端末の内容をDropboxに保存しました '+ts(), true); return; }
+    var obj=JSON.parse(text);
+    if(confirm('Dropboxに保存済みのデータが見つかりました。\n「OK」＝Dropboxの内容を読み込む（この端末の内容は上書き）\n「キャンセル」＝この端末の内容を保持してDropboxへ保存')){
+      applyPack(obj); setStat('Dropboxから読み込みました '+ts(), true);
+    } else { await saveNow(); setStat('この端末の内容をDropboxへ保存しました '+ts(), true); }
+  }catch(e){ setStat('初回同期に失敗: '+(e.message||e), false); }
+}
+function dbxDisconnect(){
+  if(!confirm('Dropboxとの接続を解除します（データは消えません。ローカル保存に戻ります）。よろしいですか？')) return;
+  setTok(null); conn=null; setStat('接続を解除しました', true); refreshModal();
+}
+
+/* ================= 起動時の復帰 ================= */
+async function cloudBoot(){
+  // B) Dropbox: トークンがあれば自動接続→同期
+  if(getTok()){ setConn('dbx'); setStat('Dropbox接続を復帰中…', true);
+    try{ var text=await dbxDownload(); if(text!=null){ if(confirm('Dropboxに保存されたデータがあります。読み込みますか？\n（「キャンセル」でこの端末の内容を保持）')) { applyPack(JSON.parse(text)); setStat('Dropboxから読み込みました '+ts(), true);} else setStat('Dropbox接続済み（この端末の内容を保持）', true);} else setStat('Dropbox接続済み', true); }
+    catch(e){ setStat('Dropbox復帰エラー: '+(e.message||e), false); }
+    return;
+  }
+  // A) フォルダ: ハンドルがあれば権限確認して復帰（要クリックの場合あり）
+  try{
+    var hd=await fsLoadHandle();
+    if(hd){ fsHandle=hd; var perm=await hd.queryPermission({mode:'readwrite'});
+      if(perm==='granted'){ setConn('fs'); await loadNow(); }
+      else { setStat('前回のフォルダ同期があります。「フォルダ再接続」で再開してください。', true); }
+    }
+  }catch(e){}
+}
+
+/* ================= モーダルUI ================= */
+function refreshModal(){
+  var m=$$('cloudModal'); if(!m||!m.classList.contains('on')) return;
+  var badge=$$('cloudConnBadge');
+  if(badge) badge.textContent = conn==='dbx'?'現在: Dropbox直結で同期中' : conn==='fs'?'現在: フォルダ自動同期中' : '現在: ローカル保存のみ（未接続）';
+  var keyEl=$$('cloudDbxKey'); if(keyEl && !keyEl.value) keyEl.value=getKey();
+}
+function openCloudModal(){
+  var m=$$('cloudModal');
+  if(!m){
+    m=document.createElement('div'); m.id='cloudModal';
+    var fs=fsSupported();
+    m.innerHTML=''
+    +'<div class="cm">'
+    +'<div class="cm-h"><span>☁ クラウド同期（Dropbox）</span><button class="btn sm" onclick="closeCloudModal()">閉じる</button></div>'
+    +'<div class="cm-b">'
+    +'<div id="cloudConnBadge" style="font-weight:700;margin-bottom:6px"></div>'
+    +'<div id="cloudStat" class="cstat"></div>'
+
+    +'<div class="cbox">'
+    +'<h4>A. フォルダ自動同期<span class="rec">App key不要・おすすめ</span></h4>'
+    +'<div class="sub">PC内の<b>Dropboxフォルダ</b>内のファイルに、変更を<b>自動保存</b>・起動時に<b>自動読込</b>します。Dropboxデスクトップアプリがクラウドへ自動同期します。（Chrome / Edge）</div>'
+    +(fs?('<div class="crow">'
+        +'<button class="btn" onclick="cloudFsConnect(\'save\')">🔗 同期ファイルを新規作成</button>'
+        +'<button class="btn" onclick="cloudFsConnect(\'open\')">📂 既存の同期ファイルを開く</button>'
+        +'<button class="btn sm" onclick="cloudFsReconnect()">フォルダ再接続</button>'
+       +'</div>')
+      :'<div class="sub" style="color:#b23">※ このブラウザは非対応です（Chrome/Edgeをご利用ください）。Dropbox直結（B）はご利用いただけます。</div>')
+    +'</div>'
+
+    +'<div class="cbox">'
+    +'<h4>B. Dropbox 直結（App key）</h4>'
+    +'<div class="sub">アプリが<b>Dropboxクラウドと直接通信</b>します。デスクトップアプリ不要・別PCやネットカフェでもログインだけで同期。<br>初回のみ<b>App key</b>が必要です（<a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noopener">Dropbox App Console</a>で作成／取得手順は別途ご案内）。</div>'
+    +'<div class="crow"><label style="font-size:12px">App key</label><input type="text" id="cloudDbxKey" placeholder="xxxxxxxxxxxxxxx" style="min-width:220px">'
+    +'<button class="btn" onclick="cloudDbxAuthStart()">Dropboxに接続</button>'
+    +'<button class="btn sm" onclick="cloudDbxDisconnect()">接続解除</button></div>'
+    +'<div id="cloudDbxCodeRow" class="crow" style="display:none;margin-top:8px">'
+    +'<label style="font-size:12px">許可コード</label><input type="text" id="cloudDbxCode" placeholder="Dropboxに表示されたコードを貼付" style="min-width:260px">'
+    +'<button class="btn" onclick="cloudDbxAuthFinish()">接続を完了</button></div>'
+    +'<ol>'
+    +'<li>「Dropboxに接続」→別タブでDropboxが開くので<b>許可</b>を押す</li>'
+    +'<li>表示された<b>コードをコピー</b>して、上の「許可コード」に貼り付け</li>'
+    +'<li>「接続を完了」→以後は自動で同期（保存/読込）します</li>'
+    +'</ol>'
+    +'</div>'
+
+    +'<div class="crow" style="justify-content:flex-end">'
+    +'<button class="btn sm" onclick="cloudManualLoad()">⤵ 今すぐ読込</button>'
+    +'<button class="btn sm" onclick="cloudManualSave()">💾 今すぐ保存</button></div>'
+    +'<div class="sub" style="margin-top:8px;color:#7a869c">対象データ＝<b>アカウント台帳・案件・対応履歴・顧客・出品申請 と 請求書データ（宛元/取引先/商品/発行履歴/角印設定）</b>の全体。両方式は併用可能（自分のPCはA、外出先はB、など）。</div>'
+    +'</div></div>';
+    document.body.appendChild(m);
+    m.addEventListener('click', function(e){ if(e.target===m) closeCloudModal(); });
+  }
+  m.classList.add('on'); refreshModal();
+}
+function closeCloudModal(){ var m=$$('cloudModal'); if(m) m.classList.remove('on'); }
+
+/* ---- グローバル公開 ---- */
+window.openCloudModal=openCloudModal; window.closeCloudModal=closeCloudModal;
+window.cloudFsConnect=fsConnect; window.cloudFsReconnect=fsReconnect;
+window.cloudDbxAuthStart=dbxAuthStart; window.cloudDbxAuthFinish=dbxAuthFinish; window.cloudDbxDisconnect=dbxDisconnect;
+window.cloudManualSave=function(){ if(!conn){ alert('先に A または B で接続してください。'); return; } saveNow(); };
+window.cloudManualLoad=function(){ if(!conn){ alert('先に A または B で接続してください。'); return; } loadNow(); };
+
+setTimeout(function(){ try{ cloudBoot(); }catch(e){ console.warn('cloudBoot',e); } }, 1600);
+})();
+
 function nowLocalDT(){ var d=new Date(), p=function(n){return (n<10?'0':'')+n;}; return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes()); }
 function dateStamp(){ var d=new Date(), p=function(n){return (n<10?'0':'')+n;}; return ''+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate()); }
 function uid2(){ return Date.now().toString(36)+Math.floor(Math.random()*1000000).toString(36); }
