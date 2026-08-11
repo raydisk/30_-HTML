@@ -36,6 +36,10 @@ label{display:block;font-size:10px;font-weight:600;color:var(--muted);margin-bot
 .save-note{margin-left:auto;font-size:11px;color:rgba(255,255,255,.55)}
 .topbtn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer}
 .topbtn:hover{background:rgba(255,255,255,.22)}
+.navbtns{display:flex;gap:4px;margin-left:10px}
+.navbtn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:4px;padding:3px 9px;font-size:11px;cursor:pointer;white-space:nowrap}
+.navbtn:hover:not(:disabled){background:rgba(255,255,255,.24)}
+.navbtn:disabled{opacity:.35;cursor:default}
 
 .shell{display:flex;align-items:flex-start;gap:0}
 .sidenav{flex:0 0 208px;width:208px;background:var(--indigo);position:sticky;top:0;height:100vh;overflow-y:auto;padding:6px 0 20px;box-shadow:inset -1px 0 0 rgba(255,255,255,.06)}
@@ -117,6 +121,10 @@ table.list tr:hover td{background:#FAFBFD}
 
 <div class="topbar no-print">
   <div class="brand">Amazonアカウント台帳・苦情・真贋対策 総合管理<small>ACCOUNT LEDGER & COMPLAINT MANAGER v6.0</small></div>
+  <span class="navbtns">
+    <button id="navBack" class="navbtn" type="button" onclick="navBack()" title="前に見ていた画面へ戻る" disabled>◀ 戻る</button>
+    <button id="navFwd" class="navbtn" type="button" onclick="navForward()" title="進む" disabled>進む ▶</button>
+  </span>
   <span style="margin-left:auto;display:flex;align-items:center;gap:6px">
     <label style="margin:0;color:rgba(255,255,255,.7);font-size:10px">表示</label>
     <select id="globalCustFilter" onchange="onGlobalFilter(this.value)" style="width:auto;min-width:120px;font-size:11px;padding:3px 6px"></select>
@@ -574,6 +582,14 @@ try {
 } catch(e){}
 
 // タブ切り替え
+/* ===== 画面ナビ履歴（戻る/進む） ===== */
+var navHist=[], navIdx=-1, navSuppress=false;
+function navRecord(name){ if(navSuppress||!name) return; if(navHist[navIdx]===name) return; navHist=navHist.slice(0,navIdx+1); navHist.push(name); navIdx=navHist.length-1; navUpdateBtns(); }
+function navGoPane(name){ var t=document.querySelector('.sidenav .tab[data-pane="'+name+'"]')||document.querySelector('.tab[data-pane="'+name+'"]'); if(t){ navSuppress=true; t.click(); navSuppress=false; } }
+function navBack(){ if(navIdx>0){ navIdx--; navGoPane(navHist[navIdx]); navUpdateBtns(); } }
+function navForward(){ if(navIdx<navHist.length-1){ navIdx++; navGoPane(navHist[navIdx]); navUpdateBtns(); } }
+function navUpdateBtns(){ var b=document.getElementById('navBack'), f=document.getElementById('navFwd'); if(b)b.disabled=(navIdx<=0); if(f)f.disabled=(navIdx>=navHist.length-1); }
+
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.tab').forEach(tab => {
     tab.addEventListener('click', (e) => {
@@ -583,8 +599,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const paneId = 'pane-' + e.currentTarget.dataset.pane;
       const targetPane = document.getElementById(paneId);
       if(targetPane) targetPane.classList.add('on');
+      navRecord(e.currentTarget.dataset.pane);
     });
   });
+  navRecord('dashboard'); navUpdateBtns();
 
   initUI();
   renderLines();
