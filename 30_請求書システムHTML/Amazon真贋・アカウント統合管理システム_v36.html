@@ -2533,7 +2533,7 @@ function renderEC(type){
   var inner=''
    +'<div style="position:relative;height:7.2mm;margin-top:8.9mm">'
      +'<div style="position:absolute;left:0;right:0;text-align:center;font-size:15pt;font-weight:700;letter-spacing:.3em;white-space:nowrap">'+title+'</div>'
-     +'<div style="position:absolute;right:0;top:1.6mm;font-size:9.2pt;white-space:nowrap">発行日付<span style="margin-left:7mm">'+esc(DOC.date||'')+'</span></div>'
+     +'<div style="position:absolute;right:0;top:1.6mm;font-size:9.2pt;white-space:nowrap;text-align:right;line-height:1.7">発行日付<span style="margin-left:7mm">'+esc(DOC.date||'')+'</span>'+((type==='invoice'&&DOC.date2)?'<br>支払期限<span style="margin-left:7mm">'+esc(DOC.date2)+'</span>':'')+'</div>'
    +'</div>'
    +'<div style="display:flex;justify-content:flex-end;margin-top:13.2mm"><table style="border-collapse:collapse;table-layout:fixed">'
      +'<tr><td style="'+K+'padding:1.3mm 1.5mm;font-size:8.8pt;width:17.5mm">注文番号</td>'
