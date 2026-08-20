@@ -2466,15 +2466,24 @@ function renderAB(type){
 // 実測: 外枠 x18.1-192.2 / y11.7-201.5、明細表 x21.1-189.0（列 26.5/94.9/22.9/11.9/11.7）
 //       表ヘッダ y108.3、宛先ボックス y59.8-79.7、総合計 y94.0、発行元/備考 y158.0
 function renderEC(type){
-  var K='border:0.25mm solid #444;box-sizing:border-box;';
+  var K='border:0.25mm solid #000;box-sizing:border-box;';
   var gray='background:#e6e6e6;-webkit-print-color-adjust:exact;print-color-adjust:exact;';
   function inc(L){return Math.round(L.price*(1+(L.rate||10)/100));}
   var incSum=0,ecInc10=0,ecInc8=0;LINES.forEach(function(L){var a=inc(L)*L.qty;incSum+=a;if(L.rate===8)ecInc8+=a;else ecInc10+=a;});
   var ecInc=incSum,ecEmb10=ecInc10-Math.round(ecInc10/1.1),ecEmb8=ecInc8-Math.round(ecInc8/1.08),ecEmbTax=ecEmb10+ecEmb8;
   function money(n){return Number(n).toLocaleString();}
-  function totalRows(cols){
-    function row(lab,val,g){return '<tr><td colspan="'+(cols-1)+'" style="'+K+'padding:1.2mm 2mm;font-size:8.6pt;'+(g?gray:'')+'">'+lab+'</td><td style="'+K+'padding:1.2mm 2mm;text-align:right;font-size:8.6pt;'+(g?gray:'')+'">'+val+'</td></tr>';}
-    var r='<tr><td colspan="'+(cols-1)+'" style="'+K+'padding:1.2mm 2mm;font-size:8.6pt;text-align:right">商品合計</td><td style="'+K+'padding:1.2mm 2mm;text-align:right;font-size:8.6pt">'+money(incSum)+'</td></tr>';
+  function nm(L){return (L.model?esc(L.model)+'　':'')+esc(L.name)+(L.rate===8?' ＊':'');}
+  /* 取引情報（1行1項目 キー：値）から拾う */
+  var TI={};String(DOC.trade||'').split('\n').forEach(function(t){var m=String(t).split(/[：:]/);if(m.length>1){TI[m.shift().trim()]=m.join('：').trim();}});
+  var orderNo=TI['注文番号']||DOC.no||'';
+  var orderDate=TI['注文日']||DOC.date||'';
+  var payM=TI['お支払い方法']||TI['支払い方法']||TI['支払方法']||'クレジットカード';
+  var shipM=TI['配送方法']||'メール便';
+  var bizH=TI['営業時間']||'';
+  function totalRows(cols,bold,shade){
+    var lb='padding:1.5mm 2mm;font-size:8.6pt;'+(bold?'font-weight:700;':'');
+    function row(lab,val,g){var s=(shade&&g)?gray:'';return '<tr><td colspan="'+(cols-1)+'" style="'+K+lb+s+'">'+lab+'</td><td style="'+K+'padding:1.5mm 2mm;text-align:right;font-size:8.6pt;'+s+'">'+val+'</td></tr>';}
+    var r='<tr><td colspan="'+(cols-1)+'" style="'+K+lb+'text-align:right">商品合計</td><td style="'+K+'padding:1.5mm 2mm;text-align:right;font-size:8.6pt">'+money(incSum)+'</td></tr>';
     r+=row('消費税',money(ecEmbTax),true);
     if(ecInc10)r+=row('消費税10%対象分',money(ecEmb10),false);
     if(ecInc8)r+=row('消費税8%対象分 ＊',money(ecEmb8),false);
@@ -2484,75 +2493,74 @@ function renderEC(type){
     r+=row('ご請求額合計',money(ecInc),true);
     return r;
   }
-  var issuerB='<div style="font-size:8.8pt;line-height:1.65">'+esc(ISS.name)+'<br>登録番号　'+esc(ISS.inv)+'<br>'+esc(ISS.zip)+'<br>'+escAddrB2()+'<br>TEL:'+esc(ISS.tel)+'<br>E-MAIL:'+esc(ISS.mail)+(ISS.web?'<br>WEB:'+esc(ISS.web):'')+'</div>';
   if(type==='receipt'){
+    var dt=String(DOC.date||'').split('-');
+    var rdate=dt.length===3?(dt[0]+'年 '+dt[1]+'月 '+dt[2]+'日'):esc(DOC.date||'');
     var rr='';
     LINES.forEach(function(L){
-      rr+='<tr><td style="'+K+'padding:1.4mm 2mm;font-size:8.8pt">'+esc(L.model)+'　'+esc(L.name)+(L.rate===8?' ＊':'')+'</td>'
+      rr+='<tr><td style="'+K+'padding:1.4mm 2mm;font-size:8.8pt;line-height:1.35">'+nm(L)+'</td>'
         +'<td style="'+K+'padding:1.4mm 2mm;text-align:right;font-size:8.8pt">'+money(inc(L))+'</td>'
         +'<td style="'+K+'padding:1.4mm 2mm;text-align:right;font-size:8.8pt">'+L.qty+'</td>'
         +'<td style="'+K+'padding:1.4mm 2mm;text-align:right;font-size:8.8pt">'+money(inc(L)*L.qty)+'</td></tr>';
     });
-    var rec='<div style="text-align:right;font-size:9.4pt">取引年月日 '+jdd()+'</div>'
-      +'<div style="text-align:center;font-size:17pt;font-weight:700;letter-spacing:1.05em;margin-top:6mm">領収書</div>'
-      +'<div style="width:96mm;margin:14mm auto 0;border-bottom:0.3mm solid #111;display:flex;justify-content:center;align-items:flex-end;position:relative;padding-bottom:1mm">'
-      +'<span style="font-size:10.5pt">'+esc(CL.name)+'</span><span style="position:absolute;right:0;font-size:9.4pt">様</span></div>'
-      +'<div style="width:106mm;margin:9mm auto 0;text-align:center;'+gray+'"><div style="font-size:12.5pt;font-weight:700;padding:3mm 0">領収金額：　￥'+money(ecInc)+'　―</div></div>'
-      +'<div style="text-align:center;font-size:9.2pt;margin-top:2mm">但し、商品購入代金として　　支払の種類：'+esc(DOC.payMethod||'銀行振込')+'</div>'
-      +'<div style="font-size:9.6pt;margin-top:8mm">上記金額を正に領収いたしました。</div>'
-      +'<div style="font-size:9.6pt;font-weight:700;margin-top:6mm">【内　訳】</div>'
-      +'<table style="width:167.9mm;border-collapse:collapse;table-layout:fixed;margin-top:1.5mm"><tr>'
-      +'<th style="'+K+'padding:1.4mm;font-size:8.8pt;font-weight:400">商品名</th>'
-      +'<th style="'+K+'padding:1.4mm;font-size:8.8pt;font-weight:400;width:23mm">単価（税込）</th>'
-      +'<th style="'+K+'padding:1.4mm;font-size:8.8pt;font-weight:400;width:12mm">数量</th>'
-      +'<th style="'+K+'padding:1.4mm;font-size:8.8pt;font-weight:400;width:22mm">金額</th></tr>'+rr+totalRows(4)+'</table>'
+    var out='';
+    out+=AP(26.1,13.2,157.6,'','<div style="text-align:right;font-size:9.4pt">取引年月日 '+rdate+'</div>');
+    out+=AP(26.1,25.2,157.6,'','<div style="text-align:center;font-size:14.5pt;font-weight:700;letter-spacing:.28em">領　収　書</div>');
+    out+=AP(60.9,42.2,88.3,'','<div style="border-bottom:0.3mm solid #111;position:relative;height:6.5mm"><div style="position:absolute;left:0;right:0;bottom:0.8mm;text-align:center;font-size:10.5pt">'+esc(CL.name)+'</div><span style="position:absolute;right:1mm;bottom:0.8mm;font-size:9.4pt">様</span></div>');
+    out+=AP(51.4,58.2,107.4,'','<div style="'+gray+'height:11mm;display:flex;align-items:center;justify-content:center"><span style="font-size:12.5pt;font-weight:700">領収金額：　¥'+money(ecInc)+'　—</span></div>');
+    out+=AP(26.1,71.2,157.6,'','<div style="text-align:center;font-size:9.2pt">但し、商品購入代金として　　支払の種類：'+esc(payM)+'</div>');
+    out+=AP(26.1,82.4,157.6,'','<div style="font-size:9.6pt">上記金額を正に領収いたしました。</div>');
+    out+=AP(26.1,92.0,157.6,'','<div style="font-size:9.6pt;font-weight:700">【内　訳】</div>');
+    var tbl='<table style="width:157.6mm;border-collapse:collapse;table-layout:fixed"><tr>'
+      +'<th style="'+K+'padding:1.3mm;font-size:8.8pt;font-weight:400">商品名</th>'
+      +'<th style="'+K+'padding:1.3mm;font-size:8.8pt;font-weight:400;width:22.1mm">単価（税込）</th>'
+      +'<th style="'+K+'padding:1.3mm;font-size:8.8pt;font-weight:400;width:12.7mm">数量</th>'
+      +'<th style="'+K+'padding:1.3mm;font-size:8.8pt;font-weight:400;width:18.6mm">金額</th></tr>'+rr+totalRows(4,true,false)+'</table>'
       +(C.has8?'<div style="font-size:7.2pt;color:#666;margin-top:1.5mm">＊は軽減税率(8%)対象品目。</div>':'')
-      +'<div style="margin-top:12mm;font-size:8.8pt;line-height:1.7;color:#333">'+esc(ISS.zip)+'<br>'+escAddrB2()+'<br><span style="font-size:10pt">'+esc(ISS.name)+'</span><br>・TEL: '+esc(ISS.tel)+'<br>・登録番号: '+esc(ISS.inv)+'<br>・MAIL: '+esc(ISS.mail)+(ISS.web?'　・WEB: '+esc(ISS.web):'')+'</div>';
-    return '<div style="position:relative;width:210mm;height:297mm;overflow:hidden">'+AP(21.1,14.0,167.9,'',rec)+'</div>';
+      +'<div style="margin-top:11mm;font-size:8.8pt;line-height:1.95;color:#333">'+esc(ISS.zip)+'<br>'+escAddrB2()+'<br><span style="font-size:10pt">'+esc(ISS.name)+'</span><br>・TEL: '+esc(ISS.tel)+'<br>・登録番号: '+esc(ISS.inv)+'</div>';
+    out+=AP(26.1,98.8,157.6,'',tbl);
+    return '<div style="position:relative;width:210mm;height:297mm;overflow:hidden">'+out+'</div>';
   }
   var title=type==='delivery'?'納品明細書':'請求書';
   var rows='';
   LINES.forEach(function(L){
-    rows+='<tr><td style="'+K+'padding:1.3mm 2mm;font-size:8.6pt;text-align:center">'+esc(L.jan)+'</td>'
-      +'<td style="'+K+'padding:1.3mm 2mm;font-size:8.6pt">'+esc(L.model)+'　'+esc(L.name)+(L.rate===8?' ＊':'')+'</td>'
-      +'<td style="'+K+'padding:1.3mm 2mm;text-align:right;font-size:8.6pt">'+money(inc(L))+'</td>'
-      +'<td style="'+K+'padding:1.3mm 2mm;text-align:right;font-size:8.6pt">'+L.qty+'</td>'
-      +'<td style="'+K+'padding:1.3mm 2mm;text-align:right;font-size:8.6pt">'+money(inc(L)*L.qty)+'</td></tr>';
+    rows+='<tr><td style="'+K+'padding:1.5mm 2mm;font-size:8.6pt;text-align:center">'+esc(L.jan)+'</td>'
+      +'<td style="'+K+'padding:1.5mm 2mm;font-size:8.6pt">'+nm(L)+'</td>'
+      +'<td style="'+K+'padding:1.5mm 2mm;text-align:right;font-size:8.6pt">'+money(inc(L))+'</td>'
+      +'<td style="'+K+'padding:1.5mm 2mm;text-align:right;font-size:8.6pt">'+L.qty+'</td>'
+      +'<td style="'+K+'padding:1.5mm 2mm;text-align:right;font-size:8.6pt">'+money(inc(L)*L.qty)+'</td></tr>';
   });
-  // 外枠内は通常フロー（原本の位置に合わせた余白）
   var inner=''
-   +'<div style="position:relative;height:11.5mm;margin-top:5.9mm">'
-     +'<span style="position:absolute;left:63.9mm;top:0;font-size:16pt;font-weight:700;letter-spacing:.28em;white-space:nowrap">'+title+'</span>'
-     +'<span style="position:absolute;right:0;top:1.5mm;font-size:9.2pt;white-space:nowrap">発行日付　　'+jdd()+'</span>'
+   +'<div style="position:relative;height:7.2mm;margin-top:8.9mm">'
+     +'<div style="position:absolute;left:0;right:0;text-align:center;font-size:15pt;font-weight:700;letter-spacing:.3em;white-space:nowrap">'+title+'</div>'
+     +'<div style="position:absolute;right:0;top:1.6mm;font-size:9.2pt;white-space:nowrap">発行日付<span style="margin-left:7mm">'+esc(DOC.date||'')+'</span></div>'
    +'</div>'
-   +'<div style="display:flex;justify-content:flex-end;margin-top:1.5mm"><table style="border-collapse:collapse;table-layout:fixed">'
-     +'<tr><td style="'+K+'padding:1.4mm 2mm;font-size:8.8pt;width:22mm">注文番号</td>'
-     +'<td style="'+K+'padding:1.4mm 2mm;font-size:8.8pt;width:50mm;text-align:center">'+dno()+'</td>'
-     +'<td style="'+K+'padding:1.4mm 2mm;font-size:8.8pt;width:18mm">注文日</td>'
-     +'<td style="'+K+'padding:1.4mm 2mm;font-size:8.8pt;width:28mm;text-align:center">'+jdd()+'</td></tr></table></div>'
-   +'<div style="font-size:9.2pt;line-height:1.65;margin-top:1.5mm">当店でのご購入誠にありがとうございます。<br>'
-     +(type==='delivery'?'下記のご注文につきまして納品いたしますので、ご確認の程よろしくお願い致します。':'下記のご注文につきましてご請求申し上げますので、ご確認の程よろしくお願い致します。')+'</div>'
-   +'<div style="display:flex;justify-content:space-between;margin-top:5.5mm">'
-     +'<div style="width:84.6mm;'+K+'"><div style="'+K+gray+'padding:1.2mm 2mm;font-size:8.8pt">ご注文者</div>'
-       +'<div style="padding:1.8mm 2mm;font-size:9pt;line-height:1.55;min-height:12mm">'+esc(CL.name)+'　様</div></div>'
-     +'<div style="width:84.4mm;'+K+'"><div style="'+K+gray+'padding:1.2mm 2mm;font-size:8.8pt">お届け先</div>'
-       +'<div style="padding:1.8mm 2mm;font-size:9pt;line-height:1.55;min-height:12mm">'+esc(CL.zip)+'<br>'+esc(CL.addr)+(CL.tel?'<br>電話番号:'+esc(CL.tel):'')+'<br>'+(CL.person?esc(CL.person):esc(CL.name))+'　様</div></div>'
+   +'<div style="display:flex;justify-content:flex-end;margin-top:13.2mm"><table style="border-collapse:collapse;table-layout:fixed">'
+     +'<tr><td style="'+K+'padding:1.3mm 1.5mm;font-size:8.8pt;width:17.5mm">注文番号</td>'
+     +'<td style="'+K+'padding:1.3mm 1.5mm;font-size:8.8pt;width:44.5mm;text-align:center">'+esc(orderNo)+'</td>'
+     +'<td style="'+K+'padding:1.3mm 1.5mm;font-size:8.8pt;width:14.3mm">注文日</td>'
+     +'<td style="'+K+'padding:1.3mm 1.5mm;font-size:8.8pt;width:23.5mm;text-align:center">'+esc(orderDate)+'</td></tr></table></div>'
+   +'<div style="font-size:9.2pt;line-height:1.72;margin-top:1.1mm">当店でのご購入誠にありがとうございます。<br>下記のご注文につきまして納品いたしますので、ご確認の程よろしくお願い致します。</div>'
+   +'<div style="display:flex;justify-content:space-between;margin-top:9.2mm;align-items:flex-start">'
+     +'<div style="width:87.5mm;'+K+'"><div style="'+K+gray+'padding:1.7mm 2mm;font-size:9pt">ご注文者</div>'
+       +'<div style="padding:1.8mm 2mm;font-size:9pt;line-height:1.55;min-height:8.8mm">'+esc(CL.name)+'　様</div></div>'
+     +'<div style="width:87.5mm;'+K+'"><div style="'+K+gray+'padding:1.7mm 2mm;font-size:9pt">お届け先</div>'
+       +'<div style="padding:1.8mm 2mm;font-size:9pt;line-height:1.72;min-height:31mm">'+esc(CL.zip)+'<br>'+esc(CL.addr)+(CL.tel?'<br>電話番号:'+esc(CL.tel):'')+'<br>'+(CL.person?esc(CL.person):esc(CL.name))+'　様</div></div>'
    +'</div>'
-   +'<div style="font-size:10pt;margin-top:8.5mm">総合計金額：　<span style="font-size:15.5pt;font-weight:700">'+money(ecInc)+'円</span></div>'
-   +'<table style="width:167.9mm;border-collapse:collapse;table-layout:fixed;margin-top:3.2mm"><tr>'
-     +'<th style="'+K+'padding:1.3mm;font-size:8.6pt;font-weight:400;width:26.5mm">商品コード</th>'
-     +'<th style="'+K+'padding:1.3mm;font-size:8.6pt;font-weight:400">商品名</th>'
-     +'<th style="'+K+'padding:1.3mm;font-size:8.6pt;font-weight:400;width:22.9mm">単価（税込）</th>'
-     +'<th style="'+K+'padding:1.3mm;font-size:8.6pt;font-weight:400;width:11.9mm">数量</th>'
-     +'<th style="'+K+'padding:1.3mm;font-size:8.6pt;font-weight:400;width:11.7mm">金額</th></tr>'+rows+totalRows(5)+'</table>'
+   +'<div style="margin-top:6.4mm;font-size:10pt">総合計金額：　<span style="font-size:13.5pt;font-weight:700">'+money(ecInc)+'円</span></div>'
+   +'<table style="width:180.4mm;border-collapse:collapse;table-layout:fixed;margin-top:4.6mm"><tr>'
+     +'<th style="'+K+'padding:1.5mm;font-size:8.6pt;font-weight:400;width:31.8mm">商品コード</th>'
+     +'<th style="'+K+'padding:1.5mm;font-size:8.6pt;font-weight:400">商品名</th>'
+     +'<th style="'+K+'padding:1.5mm;font-size:8.6pt;font-weight:400;width:24.5mm">単価（税込）</th>'
+     +'<th style="'+K+'padding:1.5mm;font-size:8.6pt;font-weight:400;width:11.7mm">数量</th>'
+     +'<th style="'+K+'padding:1.5mm;font-size:8.6pt;font-weight:400;width:15.4mm">金額</th></tr>'+rows+totalRows(5,false,true)+'</table>'
    +(C.has8?'<div style="font-size:7.2pt;color:#666;margin-top:1.2mm">＊は軽減税率(8%)対象品目。</div>':'')
-   +'<div style="font-size:9pt;margin-top:2.5mm">ご不明な点・お気づきの点がございましたらお気軽にご連絡ください。</div>'
-   +'<div style="display:flex;justify-content:space-between;margin-top:3.5mm;align-items:flex-start">'
-     +'<div style="width:86mm">'+issuerB+'</div>'
-     +'<div style="width:86mm;font-size:8.8pt;line-height:1.65">備考:<br>お支払い方法：'+esc(DOC.payMethod||(type==='invoice'?'銀行振込':'クレジットカード'))
-       +'<br>配送方法：'+esc(DOC.shipMethod||'宅配便')+((type==='invoice'&&ISS.bank&&ISS.bank!=='—')?'<br>お振込先：'+esc(ISS.bank):'')+'</div>'
+   +'<div style="font-size:9pt;margin-top:6.6mm">ご不明な点・お気づきの点がございましたらお気軽にご連絡ください。</div>'
+   +'<div style="display:flex;justify-content:space-between;margin-top:7.6mm;align-items:flex-start">'
+     +'<div style="width:88mm;font-size:8.8pt;line-height:1.95">'+esc(ISS.name)+'<br>登録番号　'+esc(ISS.inv)+'<br>'+esc(ISS.zip)+'<br>'+escAddrB2()+'<br>TEL:'+esc(ISS.tel)+'<br>E-MAIL:'+esc(ISS.mail)+(ISS.web?'<br>WEB:'+esc(ISS.web):'')+(bizH?'<br>営業時間:'+esc(bizH):'')+'</div>'
+     +'<div style="width:87.5mm;font-size:8.8pt;line-height:1.95">備考：<br>お支払い方法：'+esc(payM)+'<br>配送方法：'+esc(shipM)+'</div>'
    +'</div>';
-  var frame='<div style="position:absolute;left:18.1mm;top:11.7mm;width:174.1mm;min-height:189.8mm;'+K+'padding:0 3.0mm 4mm;">'+inner+'</div>';
+  var frame='<div style="position:absolute;left:7.9mm;top:7.9mm;width:194mm;min-height:280.8mm;'+K+'padding:0 6.7mm 5mm;">'+inner+'</div>';
   return '<div style="position:relative;width:210mm;height:297mm;overflow:hidden">'+frame+'</div>';
 }
 
