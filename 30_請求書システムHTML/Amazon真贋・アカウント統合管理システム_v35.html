@@ -2477,8 +2477,8 @@ function renderEC(type){
   var TI={};String(DOC.trade||'').split('\n').forEach(function(t){var m=String(t).split(/[：:]/);if(m.length>1){TI[m.shift().trim()]=m.join('：').trim();}});
   var orderNo=TI['注文番号']||DOC.no||'';
   var orderDate=TI['注文日']||DOC.date||'';
-  var payM=TI['お支払い方法']||TI['支払い方法']||TI['支払方法']||'クレジットカード';
-  var shipM=TI['配送方法']||'メール便';
+  var payM=TI['お支払い方法']||TI['支払い方法']||TI['支払方法']||'銀行振込';
+  var shipM=TI['配送方法']||'宅配便';
   var bizH=TI['営業時間']||'';
   function totalRows(cols,bold,shade){
     var lb='padding:1.5mm 2mm;font-size:8.6pt;'+(bold?'font-weight:700;':'');
