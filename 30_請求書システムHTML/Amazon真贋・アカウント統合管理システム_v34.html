@@ -2558,7 +2558,7 @@ function renderEC(type){
    +'<div style="font-size:9pt;margin-top:6.6mm">ご不明な点・お気づきの点がございましたらお気軽にご連絡ください。</div>'
    +'<div style="display:flex;justify-content:space-between;margin-top:7.6mm;align-items:flex-start">'
      +'<div style="width:88mm;font-size:8.8pt;line-height:1.95">'+esc(ISS.name)+'<br>登録番号　'+esc(ISS.inv)+'<br>'+esc(ISS.zip)+'<br>'+escAddrB2()+'<br>TEL:'+esc(ISS.tel)+'<br>E-MAIL:'+esc(ISS.mail)+(ISS.web?'<br>WEB:'+esc(ISS.web):'')+(bizH?'<br>営業時間:'+esc(bizH):'')+'</div>'
-     +'<div style="width:87.5mm;font-size:8.8pt;line-height:1.95">備考：<br>お支払い方法：'+esc(payM)+'<br>配送方法：'+esc(shipM)+'</div>'
+     +'<div style="width:87.5mm;font-size:8.8pt;line-height:1.95">備考：<br>お支払い方法：'+esc(payM)+'<br>配送方法：'+esc(shipM)+((type==='invoice'&&ISS.bank&&ISS.bank!=='—')?'<br>お振込先：'+esc(ISS.bank):'')+'</div>'
    +'</div>';
   var frame='<div style="position:absolute;left:7.9mm;top:7.9mm;width:194mm;min-height:280.8mm;'+K+'padding:0 6.7mm 5mm;">'+inner+'</div>';
   return '<div style="position:relative;width:210mm;height:297mm;overflow:hidden">'+frame+'</div>';
